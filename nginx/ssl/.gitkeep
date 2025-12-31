@@ -1,0 +1,23 @@
+# SSL Certificates Directory
+
+Place your SSL/TLS certificates here for Nginx.
+
+## Required Files
+
+- `fullchain.pem` - Full certificate chain
+- `privkey.pem` - Private key
+
+## Using Let's Encrypt
+
+If using Let's Encrypt with Certbot, symlink the certificates:
+
+```bash
+sudo ln -s /etc/letsencrypt/live/your-domain.com/fullchain.pem nginx/ssl/fullchain.pem
+sudo ln -s /etc/letsencrypt/live/your-domain.com/privkey.pem nginx/ssl/privkey.pem
+```
+
+## Manual Certificates
+
+Copy your certificate files here and update nginx/nginx.conf if needed.
+
+**IMPORTANT:** Never commit actual certificate files to git. They are excluded via .gitignore.
