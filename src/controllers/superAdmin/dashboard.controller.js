@@ -281,7 +281,7 @@ const getDashboard = asyncHandler(async (req, res) => {
         `SELECT 
             a.id,
             'activation' as type,
-            CONCAT('New sticker activated - ', s.sticker_code) as description,
+            CONCAT('New sticker activated - ', s.code) as description,
             l.name as lga_name,
             u.name as officer_name,
             a.activation_date as timestamp,
