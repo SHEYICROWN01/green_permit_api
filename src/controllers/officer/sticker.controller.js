@@ -47,9 +47,9 @@ exports.getStickerDetails = async (req, res) => {
         const sticker = stickers[0];
 
         // Determine current status
-        let status = 'unused';
-        if (sticker.is_activated) {
-            status = new Date() > new Date(sticker.expiry_date) ? 'expired' : 'active';
+        let status = sticker.status || 'unused';
+        if (sticker.status === 'active' && sticker.expires_at) {
+            status = new Date() > new Date(sticker.expires_at) ? 'expired' : 'active';
         }
 
         console.log('Sticker found:', { code: stickerID, status });
@@ -165,7 +165,7 @@ exports.activateSticker = async (req, res) => {
 
         // Check if sticker exists and is unused - get LGA price at the same time
         const [stickers] = await connection.execute(
-            `SELECT s.id, s.sticker_code, s.lga_id, s.is_activated, l.sticker_price 
+            `SELECT s.id, s.sticker_code, s.lga_id, s.status, l.sticker_price 
              FROM stickers s
              LEFT JOIN lgas l ON s.lga_id = l.id
              WHERE s.sticker_code = ? FOR UPDATE`,
@@ -212,7 +212,7 @@ exports.activateSticker = async (req, res) => {
             });
         }
 
-        if (sticker.is_activated) {
+        if (sticker.status === 'active' || sticker.status === 'expired') {
             await connection.rollback();
 
             // Get activation details
@@ -301,19 +301,14 @@ exports.activateSticker = async (req, res) => {
         // Update sticker status
         await connection.execute(
             `UPDATE stickers SET 
-                is_activated = TRUE,
-                is_verified = TRUE,
-                verified_by_id = ?,
-                verified_by_name = ?,
-                verified_by_role = 'officer',
-                verified_at = NOW(),
+                status = 'active',
+                activated_by = ?,
+                activated_at = NOW(),
                 assigned_to_name = ?,
                 assigned_to_phone = ?,
-                assigned_at = ?,
-                status = 'active',
                 expires_at = ?
              WHERE id = ?`,
-            [userId, req.user.name, cartPusherName, cartPusherContact, activationDate, expiryDate, sticker.id]
+            [userId, cartPusherName, cartPusherContact, expiryDate, sticker.id]
         );
 
         await connection.commit();
@@ -405,7 +400,7 @@ exports.verifySticker = async (req, res) => {
         let daysRemaining = null;
         let daysOverdue = null;
 
-        if (sticker.is_activated) {
+        if (sticker.status === 'active' || sticker.status === 'expired') {
             const expiryDate = new Date(sticker.expiry_date);
             if (now < expiryDate) {
                 status = 'active';

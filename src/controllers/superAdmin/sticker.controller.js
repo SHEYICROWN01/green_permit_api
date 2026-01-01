@@ -44,8 +44,7 @@ exports.searchStickers = async (req, res) => {
             lga_id: req.query.lga_id ? parseInt(req.query.lga_id) : null,
             batch_id: req.query.batch_id ? parseInt(req.query.batch_id) : null,
             status: req.query.status,
-            is_activated: req.query.is_activated === 'true' ? true : req.query.is_activated === 'false' ? false : null,
-            is_verified: req.query.is_verified === 'true' ? true : req.query.is_verified === 'false' ? false : null,
+            activation_status: req.query.activation_status, // 'unused', 'active', 'expired'
             date_from: req.query.date_from,
             date_to: req.query.date_to,
             page: parseInt(req.query.page) || 1,
@@ -96,7 +95,7 @@ exports.getVerificationHistory = async (req, res) => {
             sticker: {
                 code: sticker.sticker_code,
                 lga_name: sticker.lga_name,
-                is_activated: sticker.is_activated,
+                activation_status: sticker.status,
                 status: sticker.status
             },
             ...result
@@ -178,7 +177,7 @@ exports.exportStickers = async (req, res) => {
             lga_id: req.query.lga_id ? parseInt(req.query.lga_id) : null,
             batch_id: req.query.batch_id ? parseInt(req.query.batch_id) : null,
             status: req.query.status,
-            is_activated: req.query.is_activated === 'true' ? true : req.query.is_activated === 'false' ? false : null,
+            activation_status: req.query.activation_status, // 'unused', 'active', 'expired'
             page: 1,
             limit: 10000 // Max export limit
         };
@@ -208,7 +207,7 @@ exports.exportStickers = async (req, res) => {
             s.state_name,
             s.price,
             s.status,
-            s.is_activated ? 'Yes' : 'No',
+            (s.status === 'active' || s.status === 'expired') ? 'Yes' : 'No',
             s.verified_by_name || 'N/A',
             s.verified_at || 'N/A',
             s.assigned_to_name || 'N/A',

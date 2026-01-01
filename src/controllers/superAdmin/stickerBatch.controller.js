@@ -306,7 +306,7 @@ exports.getBatchStickers = async (req, res) => {
             page: parseInt(req.query.page) || 1,
             limit: parseInt(req.query.limit) || 50,
             status: req.query.status,
-            is_activated: req.query.is_activated === 'true' ? true : req.query.is_activated === 'false' ? false : null
+            activation_status: req.query.activation_status // 'unused', 'active', 'expired'
         };
 
         const result = await Sticker.findByBatch(batch.id, options);

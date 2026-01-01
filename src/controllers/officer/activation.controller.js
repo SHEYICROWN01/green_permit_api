@@ -39,7 +39,7 @@ exports.activateSticker = async (req, res) => {
         }
 
         // Check if already activated
-        if (sticker.is_activated) {
+        if (sticker.status === 'active' || sticker.status === 'expired') {
             return res.status(400).json({
                 success: false,
                 message: 'Sticker has already been activated',
