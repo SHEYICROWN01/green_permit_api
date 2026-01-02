@@ -9,45 +9,30 @@ class StickerBatch {
      */
     static async create(batchData) {
         const {
-            batch_id,
+            batch_code,
             lga_id,
-            lga_name,
-            lga_code,
-            state_name,
             quantity,
-            price_per_sticker,
-            total_value,
-            design_config,
-            generated_by_id,
-            generated_by_name,
-            notes,
-            expires_at
+            prefix,
+            start_number,
+            end_number,
+            generated_by_id
         } = batchData;
 
         const sql = `
       INSERT INTO sticker_batches (
-        batch_id, lga_id, lga_name, lga_code, state_name,
-        quantity, remaining_count, price_per_sticker, total_value,
-        design_config, generated_by_id, generated_by_name, generated_at,
-        notes, expires_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+        batch_code, lga_id, quantity, prefix, start_number, end_number, 
+        used_count, generated_by
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, ?)
     `;
 
         const [result] = await pool.execute(sql, [
-            batch_id,
+            batch_code,
             lga_id,
-            lga_name,
-            lga_code,
-            state_name,
             quantity,
-            quantity, // remaining_count starts as quantity
-            price_per_sticker,
-            total_value,
-            JSON.stringify(design_config || {}), // MySQL JSON column requires string
-            generated_by_id,
-            generated_by_name,
-            notes || null,
-            expires_at || null
+            prefix,
+            start_number,
+            end_number,
+            generated_by_id
         ]);
 
         return this.findById(result.insertId);
@@ -71,13 +56,13 @@ class StickerBatch {
     }
 
     /**
-     * Find batch by batch_id (unique string identifier)
-     * @param {string} batchId - Batch ID string (e.g., BATCH-2024-001)
+     * Find batch by batch_code (unique string identifier)
+     * @param {string} batchCode - Batch code string
      * @returns {Promise<Object|null>}
      */
-    static async findByBatchId(batchId) {
-        const sql = 'SELECT * FROM sticker_batches WHERE batch_id = ?';
-        const [rows] = await pool.execute(sql, [batchId]);
+    static async findByBatchId(batchCode) {
+        const sql = 'SELECT * FROM sticker_batches WHERE batch_code = ?';
+        const [rows] = await pool.execute(sql, [batchCode]);
 
         if (rows.length === 0) return null;
 
@@ -231,12 +216,12 @@ class StickerBatch {
     }
 
     /**
-     * Generate next batch ID
+     * Generate next batch code
      * @returns {Promise<string>}
      */
     static async generateBatchId() {
         const sql = `
-      SELECT batch_id 
+      SELECT batch_code 
       FROM sticker_batches 
       ORDER BY id DESC 
       LIMIT 1
@@ -244,14 +229,14 @@ class StickerBatch {
         const [rows] = await pool.execute(sql);
 
         if (rows.length === 0) {
-            return 'BATCH-2024-001';
+            return 'BATCH-2026-001';
         }
 
-        const lastBatchId = rows[0].batch_id;
-        const match = lastBatchId.match(/BATCH-(\d{4})-(\d{3})/);
+        const lastBatchCode = rows[0].batch_code;
+        const match = lastBatchCode.match(/BATCH-(\d{4})-(\d{3})/);
 
         if (!match) {
-            return 'BATCH-2024-001';
+            return 'BATCH-2026-001';
         }
 
         const year = new Date().getFullYear();

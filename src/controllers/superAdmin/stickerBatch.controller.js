@@ -45,42 +45,36 @@ exports.generateBatch = async (req, res) => {
             });
         }
 
-        // Generate batch ID
-        const batch_id = await StickerBatch.generateBatchId();
+        // Generate batch code
+        const batch_code = await StickerBatch.generateBatchId();
 
-        // Calculate pricing
-        const price_per_sticker = lga.sticker_price / 100; // Convert kobo to naira
-        const total_value = price_per_sticker * quantity;
+        // Calculate sticker range
+        const prefix = lga.code; // Use LGA code as prefix
+        const start_number = 1;
+        const end_number = quantity;
 
         // Create batch record
         const batchData = {
-            batch_id,
+            batch_code,
             lga_id,
-            lga_name: lga.name,
-            lga_code: lga.code,
-            state_name: lga.state,
             quantity,
-            price_per_sticker,
-            total_value,
-            design_config,
-            generated_by_id: req.user.id,
-            generated_by_name: user ? user.name : 'System Administrator',
-            notes: notes || null,
-            expires_at: expires_at || null
+            prefix,
+            start_number,
+            end_number,
+            generated_by_id: req.user.id
         };
 
         const batch = await StickerBatch.create(batchData);
+
+        // Get price from LGA
+        const price_per_sticker = lga.sticker_price || 0;
 
         // Generate individual stickers
         const stickerInfo = {
             batch_id: batch.id,
             lga_id,
-            lga_name: lga.name,
             lga_code: lga.code,
-            state_name: lga.state,
-            price: price_per_sticker,
-            generated_by_id: req.user.id,
-            generated_by_name: user ? user.name : 'System Administrator'
+            price: price_per_sticker
         };
 
         await Sticker.bulkCreate(stickerInfo, quantity);
@@ -91,7 +85,7 @@ exports.generateBatch = async (req, res) => {
             lga_id: lga_id,
             action: 'batch_generated',
             category: 'sticker',
-            description: `Generated batch ${batch_id} with ${quantity} stickers for ${lga.name}`,
+            description: `Generated batch ${batch_code} with ${quantity} stickers for ${lga.name}`,
             metadata: { batch_id: batch.id, lga_id, quantity }
         });
 
