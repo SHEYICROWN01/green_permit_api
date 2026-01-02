@@ -147,7 +147,19 @@ exports.getAllBatches = async (req, res) => {
  */
 exports.getBatchDetails = async (req, res) => {
     try {
-        const batch = await StickerBatch.findByBatchId(req.params.batch_id);
+        // Accept either numeric ID or batch_code
+        const batchId = req.params.batch_id;
+        let batch;
+
+        // Try to find by numeric ID first
+        if (!isNaN(batchId)) {
+            batch = await StickerBatch.findById(parseInt(batchId));
+        }
+
+        // If not found, try batch_code
+        if (!batch) {
+            batch = await StickerBatch.findByBatchId(batchId);
+        }
 
         if (!batch) {
             return res.status(404).json({

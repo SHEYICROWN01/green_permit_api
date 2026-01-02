@@ -85,12 +85,22 @@ class StickerBatch {
             sort_order = 'DESC'
         } = filters;
 
-        let sql = 'SELECT * FROM sticker_batches WHERE 1=1';
+        let sql = `
+            SELECT 
+                sb.*,
+                l.name as lga_name,
+                l.code as lga_code,
+                l.state as state_name,
+                'active' as status
+            FROM sticker_batches sb
+            LEFT JOIN lgas l ON sb.lga_id = l.id
+            WHERE 1=1
+        `;
         const params = [];
 
         // Apply filters
         if (lga_id) {
-            sql += ' AND lga_id = ?';
+            sql += ' AND sb.lga_id = ?';
             params.push(lga_id);
         }
 
@@ -100,23 +110,23 @@ class StickerBatch {
         }
 
         if (search) {
-            sql += ' AND (batch_id LIKE ? OR lga_name LIKE ? OR notes LIKE ?)';
+            sql += ' AND (sb.batch_code LIKE ? OR l.name LIKE ?)';
             const searchPattern = `%${search}%`;
-            params.push(searchPattern, searchPattern, searchPattern);
+            params.push(searchPattern, searchPattern);
         }
 
         // Get total count
-        const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as total');
+        const countSql = sql.replace(/SELECT\s+sb\.\*.*?FROM/s, 'SELECT COUNT(*) as total FROM');
         const [countResult] = await pool.execute(countSql, params);
         const total = countResult[0].total;
 
         // Add sorting and pagination
-        const allowedSortFields = ['generated_at', 'batch_id', 'quantity', 'used_count', 'status'];
+        const allowedSortFields = ['generated_at', 'batch_code', 'quantity', 'used_count'];
         const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'generated_at';
         const order = sort_order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
         // Use safe SQL construction for ORDER BY (can't be parameterized)
-        sql += ` ORDER BY \`${sortField}\` ${order}`;
+        sql += ` ORDER BY sb.\`${sortField}\` ${order}`;
 
         // Calculate offset
         const offset = (page - 1) * limit;
