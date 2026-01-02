@@ -136,8 +136,8 @@ async function getSummaryStats(startDate, endDate, lgaFilter, lgaParams) {
         SELECT 
             COALESCE(SUM(a.amount_paid), 0) as total_revenue,
             COUNT(DISTINCT s.id) as total_stickers_generated,
-            COUNT(a.id) as total_stickers_activated,
-            ROUND((COUNT(a.id) / NULLIF(COUNT(DISTINCT s.id), 0)) * 100, 1) as activation_rate,
+            COUNT(DISTINCT CASE WHEN a.id IS NOT NULL THEN a.id END) as total_stickers_activated,
+            ROUND((COUNT(DISTINCT CASE WHEN a.id IS NOT NULL THEN a.id END) / NULLIF(COUNT(DISTINCT s.id), 0)) * 100, 1) as activation_rate,
             COUNT(DISTINCT u.id) as total_personnel,
             COUNT(DISTINCT l.id) as total_lgas
         FROM lgas l
