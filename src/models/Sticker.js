@@ -58,7 +58,7 @@ class Sticker {
         const params = [];
 
         if (sticker_code) {
-            sql += ' AND sticker_code LIKE ?';
+            sql += ' AND code LIKE ?';
             params.push('%' + sticker_code + '%');
         }
 
@@ -105,7 +105,7 @@ class Sticker {
     static async activate(stickerCode, activationData) {
         const { verified_by_id, verified_by_name, verified_by_role, verification_location, verification_notes, verification_photo_url, assigned_to_name, assigned_to_phone, expires_at } = activationData;
         const now = new Date();
-        const sql = "UPDATE stickers SET status = 'active', activated_by = ?, activated_at = ?, assigned_to_name = ?, assigned_to_phone = ?, expires_at = ? WHERE sticker_code = ? AND status = 'unused'";
+        const sql = "UPDATE stickers SET status = 'active', activated_by = ?, activated_at = ?, assigned_to_name = ?, assigned_to_phone = ?, expires_at = ? WHERE code = ? AND status = 'unused'";
         const [result] = await pool.execute(sql, [verified_by_id, now, assigned_to_name || null, assigned_to_phone || null, expires_at || null, stickerCode]);
         if (result.affectedRows === 0) throw new Error('Sticker not found or already activated');
         return this.findByCode(stickerCode);

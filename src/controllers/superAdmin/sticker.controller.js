@@ -201,7 +201,7 @@ exports.exportStickers = async (req, res) => {
         ].join(',');
 
         const rows = stickers.map(s => [
-            s.sticker_code,
+            s.code,
             s.lga_name,
             s.lga_code,
             s.state_name,

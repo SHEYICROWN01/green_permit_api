@@ -70,7 +70,7 @@ class Activation {
         const sql = `
             SELECT 
                 a.id,
-                s.sticker_code as sticker_number,
+                s.code as sticker_number,
                 a.customer_name as plate_number,
                 a.amount_paid,
                 a.activation_date,
