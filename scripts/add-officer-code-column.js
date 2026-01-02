@@ -15,7 +15,7 @@ const addOfficerCodeColumn = async () => {
     try {
         // Step 1: Check if column exists
         console.log('📋 Step 1: Checking if officer_code column exists...');
-        const [columns] = await db.query(`
+        const columns = await db.query(`
             SELECT COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA = DATABASE()
@@ -23,19 +23,24 @@ const addOfficerCodeColumn = async () => {
             AND COLUMN_NAME = 'officer_code'
         `);
 
-        if (columns.length > 0) {
+        // Handle both array and direct result formats
+        const columnResults = Array.isArray(columns[0]) ? columns[0] : columns;
+
+        if (columnResults && columnResults.length > 0) {
             console.log('✅ officer_code column already exists!');
 
             // Show current officers with codes
-            const [officers] = await db.query(`
+            const officers = await db.query(`
                 SELECT id, name, username, officer_code, role, lga_id
                 FROM users
                 WHERE role = 'officer'
                 LIMIT 5
             `);
 
+            const officerResults = Array.isArray(officers[0]) ? officers[0] : officers;
+
             console.log('\n📊 Sample officers:');
-            console.table(officers);
+            console.table(officerResults);
 
             console.log('\n✨ Migration completed - no changes needed!');
             process.exit(0);
@@ -62,7 +67,7 @@ const addOfficerCodeColumn = async () => {
 
         // Step 4: Update existing officers
         console.log('\n📋 Step 4: Generating codes for existing officers...');
-        const [updateResult] = await db.query(`
+        const updateResult = await db.query(`
             UPDATE users u
             INNER JOIN lgas l ON u.lga_id = l.id
             SET u.officer_code = CONCAT('OFF-', l.code, '-', YEAR(COALESCE(u.created_at, NOW())), '-', LPAD(u.id, 4, '0'))
@@ -70,11 +75,14 @@ const addOfficerCodeColumn = async () => {
             AND u.officer_code IS NULL
         `);
 
-        console.log(`✅ Updated ${updateResult.affectedRows} existing officers with officer codes!`);
+        const updateInfo = Array.isArray(updateResult[0]) ? updateResult[0] : updateResult;
+        const affectedRows = updateInfo.affectedRows || 0;
+
+        console.log(`✅ Updated ${affectedRows} existing officers with officer codes!`);
 
         // Step 5: Verify
         console.log('\n📋 Step 5: Verifying the changes...');
-        const [verification] = await db.query(`
+        const verification = await db.query(`
             SELECT 
                 COLUMN_NAME,
                 COLUMN_TYPE,
@@ -87,19 +95,23 @@ const addOfficerCodeColumn = async () => {
             AND COLUMN_NAME = 'officer_code'
         `);
 
+        const verifyResults = Array.isArray(verification[0]) ? verification[0] : verification;
+
         console.log('\n📊 Column details:');
-        console.table(verification);
+        console.table(verifyResults);
 
         // Show updated officers
-        const [officers] = await db.query(`
+        const officers = await db.query(`
             SELECT id, name, username, officer_code, role, lga_id
             FROM users
             WHERE role = 'officer'
             LIMIT 5
         `);
 
+        const officerResults = Array.isArray(officers[0]) ? officers[0] : officers;
+
         console.log('\n📊 Sample officers with codes:');
-        console.table(officers);
+        console.table(officerResults);
 
         console.log('\n✨ Migration completed successfully!');
         console.log('\n🎯 Next steps:');
