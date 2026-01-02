@@ -13,8 +13,8 @@ module.exports = {
             : '*',
     },
     rateLimit: {
-        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-        max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 1 * 60 * 1000, // 1 minute
+        max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // 1000 requests per minute
     },
     log: {
         level: process.env.LOG_LEVEL || 'info',

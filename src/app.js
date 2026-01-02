@@ -35,13 +35,21 @@ if (config.node_env === 'development') {
     app.use(morgan('combined'));
 }
 
-// Rate limiting
+// Rate limiting - More lenient for authenticated users
 const limiter = rateLimit({
     windowMs: config.rateLimit.windowMs,
     max: config.rateLimit.max,
     message: 'Too many requests from this IP, please try again later.',
+    skip: (req) => {
+        // Skip rate limiting for authenticated requests (users with valid JWT)
+        return req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
 });
-app.use(limiter);
+
+// Apply rate limit only to unauthenticated routes
+app.use('/api/v1/public', limiter);
 
 // API routes
 app.use(config.api.prefix, routes);
