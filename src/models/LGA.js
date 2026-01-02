@@ -403,8 +403,8 @@ class LGA {
     static async getMonthlyRevenueChart(lgaId) {
         const sql = `
             SELECT 
-                ANY_VALUE(DATE_FORMAT(activation_date, '%b')) as month,
-                ANY_VALUE(DATE_FORMAT(activation_date, '%M %Y')) as month_full,
+                DATE_FORMAT(activation_date, '%b') as month,
+                DATE_FORMAT(activation_date, '%M %Y') as month_full,
                 YEAR(activation_date) as year,
                 MONTH(activation_date) as month_number,
                 COALESCE(SUM(amount_paid), 0) as value,
@@ -412,7 +412,7 @@ class LGA {
             FROM activations
             WHERE lga_id = ? 
                 AND activation_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-            GROUP BY YEAR(activation_date), MONTH(activation_date)
+            GROUP BY YEAR(activation_date), MONTH(activation_date), DATE_FORMAT(activation_date, '%b'), DATE_FORMAT(activation_date, '%M %Y')
             ORDER BY year, month_number
             LIMIT 6
         `;
@@ -625,7 +625,7 @@ class LGA {
 
         // Search filter
         if (search) {
-            whereClauses.push('(s.sticker_code LIKE ? OR a.customer_name LIKE ?)');
+            whereClauses.push('(s.code LIKE ? OR a.customer_name LIKE ?)');
             const searchTerm = `%${search}%`;
             params.push(searchTerm, searchTerm);
         }
@@ -650,13 +650,13 @@ class LGA {
         const sql = `
             SELECT 
                 s.id,
-                s.sticker_code as code,
+                s.code,
                 s.status,
                 a.customer_name as vehicle_plate,
                 a.customer_name as vehicle_owner,
                 a.customer_phone as vehicle_phone,
                 u.name as activated_by,
-                s.verified_by_id as activated_by_id,
+                s.activated_by as activated_by_id,
                 a.activation_date,
                 a.expiry_date,
                 COALESCE(a.amount_paid, l.sticker_price) as price,
@@ -666,7 +666,7 @@ class LGA {
                 END as days_remaining
             FROM stickers s
             LEFT JOIN activations a ON a.sticker_id = s.id
-            LEFT JOIN users u ON u.id = s.verified_by_id
+            LEFT JOIN users u ON u.id = s.activated_by
             LEFT JOIN lgas l ON l.id = s.lga_id
             WHERE ${whereClauses.join(' AND ')}
             ORDER BY s.created_at DESC
