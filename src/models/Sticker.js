@@ -3,23 +3,22 @@ const { generateStickerCode, generateQRCodeData } = require('../utils/stickerCod
 
 class Sticker {
     static async bulkCreate(batchInfo, quantity) {
-        const { batch_id, lga_id, lga_name, lga_code, state_name, price, generated_by_id, generated_by_name } = batchInfo;
+        const { batch_id, lga_id, lga_code, price } = batchInfo;
         const values = [];
         for (let i = 1; i <= quantity; i++) {
             const stickerCode = generateStickerCode(lga_code, i);
-            const qrCodeData = generateQRCodeData(stickerCode);
-            const now = new Date();
-            values.push([stickerCode, qrCodeData, batch_id, lga_id, lga_name, lga_code, state_name, price, generated_by_id, generated_by_name, now, now, now]);
+            const qrCodeUrl = generateQRCodeData(stickerCode);
+            values.push([stickerCode, batch_id, lga_id, qrCodeUrl, price]);
         }
-        const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE(?), TIME(?), ?)').join(', ');
+        const placeholders = values.map(() => '(?, ?, ?, ?, ?)').join(', ');
         const flatValues = values.flat();
-        const sql = 'INSERT INTO stickers (sticker_code, qr_code_data, batch_id, lga_id, lga_name, lga_code, state_name, price, generated_by_id, generated_by_name, generated_date, generated_time, generated_at) VALUES ' + placeholders;
+        const sql = 'INSERT INTO stickers (code, batch_id, lga_id, qr_code_url, price) VALUES ' + placeholders;
         await pool.execute(sql, flatValues);
         return { generated: quantity, batch_id, lga_code, message: 'Successfully generated ' + quantity + ' stickers' };
     }
 
     static async findByCode(stickerCode) {
-        const [rows] = await pool.execute('SELECT * FROM stickers WHERE sticker_code = ?', [stickerCode]);
+        const [rows] = await pool.execute('SELECT * FROM stickers WHERE code = ?', [stickerCode]);
         return rows.length > 0 ? rows[0] : null;
     }
 
@@ -121,7 +120,7 @@ class Sticker {
     }
 
     static async updateStatus(stickerCode, status) {
-        await pool.execute('UPDATE stickers SET status = ? WHERE sticker_code = ?', [status, stickerCode]);
+        await pool.execute('UPDATE stickers SET status = ? WHERE code = ?', [status, stickerCode]);
         return this.findByCode(stickerCode);
     }
 
@@ -142,7 +141,7 @@ class Sticker {
     }
 
     static async getInventorySummary() {
-        const sql = "SELECT lga_id, ANY_VALUE(lga_name) as lga_name, ANY_VALUE(lga_code) as lga_code, ANY_VALUE(state_name) as state_name, COUNT(*) as total_stickers, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as activated, SUM(CASE WHEN status = 'unused' THEN 1 ELSE 0 END) as unused, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active, SUM(price) as total_value FROM stickers GROUP BY lga_id ORDER BY total_stickers DESC";
+        const sql = "SELECT lga_id, COUNT(*) as total_stickers, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as activated, SUM(CASE WHEN status = 'unused' THEN 1 ELSE 0 END) as unused, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active, SUM(price) as total_value FROM stickers GROUP BY lga_id ORDER BY total_stickers DESC";
         const [rows] = await pool.execute(sql);
         return rows;
     }
