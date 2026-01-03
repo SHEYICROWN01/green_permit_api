@@ -357,7 +357,7 @@ exports.createOfficer = asyncHandler(async (req, res) => {
         console.log('User Role:', req.user.role);
 
         const lgaId = req.user.lga_id;
-        const { name, username, phone, password, supervisor_id } = req.body;
+        const { name, username, email, phone, password, supervisor_id } = req.body;
 
         // Validation
         console.log('Starting validation...');
@@ -370,6 +370,25 @@ exports.createOfficer = asyncHandler(async (req, res) => {
         if (!username || username.length < 3) {
             console.log('VALIDATION ERROR: Username validation failed');
             throw new ApiError(400, 'Username is required and must be at least 3 characters');
+        }
+
+        // Validate email if provided
+        if (email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                console.log('VALIDATION ERROR: Invalid email format');
+                throw new ApiError(400, 'Invalid email format');
+            }
+
+            // Check if email already exists
+            const existingEmail = await db.query(
+                'SELECT id FROM users WHERE email = ? AND role = "officer"',
+                [email]
+            );
+            if (existingEmail.length > 0) {
+                console.log('EMAIL CONFLICT: Email already exists');
+                throw new ApiError(409, 'Email already exists');
+            }
         }
 
         if (!phone) {
@@ -468,11 +487,11 @@ exports.createOfficer = asyncHandler(async (req, res) => {
 
         console.log('Creating officer with code:', officerCode);
 
-        // Create officer (officers use username, not email)
+        // Create officer with email field
         const createResult = await db.query(
             `INSERT INTO users (name, email, username, password, phone, role, lga_id, supervisor_id, officer_code, is_active, created_at) 
-             VALUES (?, NULL, ?, ?, ?, 'officer', ?, ?, ?, 1, NOW())`,
-            [name, username, hashedPassword, phone, lgaId, supId, officerCode]
+             VALUES (?, ?, ?, ?, ?, 'officer', ?, ?, ?, 1, NOW())`,
+            [name, email || null, username, hashedPassword, phone, lgaId, supId, officerCode]
         );
 
         const officerId = createResult.insertId;
@@ -484,6 +503,7 @@ exports.createOfficer = asyncHandler(async (req, res) => {
                 officer_code: officerCode,
                 name: name,
                 username: username,
+                email: email || null,
                 phone: phone,
                 status: 'active',
                 lga_id: `lga_${lgaId}`,
