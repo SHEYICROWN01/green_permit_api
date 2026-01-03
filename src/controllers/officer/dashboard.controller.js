@@ -1,5 +1,5 @@
 // src/controllers/officer/dashboard.controller.js
-const { pool } = require('../../config/database');
+const db = require('../../config/database');
 
 /**
  * @desc    Get officer dashboard overview
@@ -17,7 +17,7 @@ exports.getDashboardOverview = async (req, res) => {
         console.log('Officer:', { userId, officerId, targetDate });
 
         // Get today's statistics for this officer
-        const [todayStats] = await pool.execute(
+        const todayStats = await db.query(
             `SELECT 
                 COUNT(a.id) as stickers_activated,
                 COALESCE(SUM(a.amount_paid), 0) as revenue
@@ -28,7 +28,7 @@ exports.getDashboardOverview = async (req, res) => {
         );
 
         // Get today's verification count
-        const [verificationStats] = await pool.execute(
+        const verificationStats = await db.query(
             `SELECT COUNT(id) as verifications_performed
              FROM verifications
              WHERE officer_id = ?
@@ -37,7 +37,7 @@ exports.getDashboardOverview = async (req, res) => {
         );
 
         // Get overall statistics for this officer's LGA
-        const [overallStats] = await pool.execute(
+        const overallStats = await db.query(
             `SELECT 
                 COUNT(DISTINCT a.cart_pusher_id) as total_cart_pushers_registered,
                 COUNT(CASE WHEN s.status = 'active' THEN 1 END) as active_permits,
@@ -49,7 +49,7 @@ exports.getDashboardOverview = async (req, res) => {
         );
 
         // Get recent activities (last 10 activations and verifications combined)
-        const [activations] = await pool.execute(
+        const activations = await db.query(
             `SELECT 
                 CONCAT('ACT-', a.id) as id,
                 'activation' as type,
@@ -67,7 +67,7 @@ exports.getDashboardOverview = async (req, res) => {
             [userId]
         );
 
-        const [verifications] = await pool.execute(
+        const verifications = await db.query(
             `SELECT 
                 CONCAT('VER-', v.id) as id,
                 'verification' as type,
@@ -108,14 +108,14 @@ exports.getDashboardOverview = async (req, res) => {
                     lgaAssigned
                 },
                 todayStats: {
-                    revenue: parseFloat((todayStats[0].revenue / 100).toFixed(2)),
-                    stickersActivated: todayStats[0].stickers_activated,
-                    verificationsPerformed: verificationStats[0].verifications_performed
+                    revenue: parseFloat(((todayStats[0]?.revenue || 0) / 100).toFixed(2)),
+                    stickersActivated: todayStats[0]?.stickers_activated || 0,
+                    verificationsPerformed: verificationStats[0]?.verifications_performed || 0
                 },
                 overallStats: {
-                    totalCartPushersRegistered: overallStats[0].total_cart_pushers_registered || 0,
-                    activePermits: overallStats[0].active_permits || 0,
-                    expiredPermits: overallStats[0].expired_permits || 0
+                    totalCartPushersRegistered: overallStats[0]?.total_cart_pushers_registered || 0,
+                    activePermits: overallStats[0]?.active_permits || 0,
+                    expiredPermits: overallStats[0]?.expired_permits || 0
                 },
                 recentActivities
             }
@@ -126,7 +126,8 @@ exports.getDashboardOverview = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to retrieve dashboard data',
-            errorCode: 'SERVER_ERROR'
+            errorCode: 'SERVER_ERROR',
+            debug: error.message // Add for debugging
         });
     }
 };
