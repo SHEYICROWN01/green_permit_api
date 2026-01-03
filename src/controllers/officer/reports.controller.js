@@ -1,5 +1,5 @@
 // src/controllers/officer/reports.controller.js
-const { pool } = require('../../config/database');
+const db = require('../../config/database');
 
 /**
  * @desc    Get activity breakdown with pagination
@@ -47,51 +47,64 @@ exports.getActivityBreakdown = async (req, res) => {
             ? `AND ${dateFilter.join(' AND ')}`
             : '';
 
-        // Get summary statistics
+        // Get summary statistics with graceful error handling
         const summaryParams = [userId, effectiveStartDate, effectiveEndDate];
-        const [summaryRows] = await pool.execute(
-            `SELECT 
-                COUNT(a.id) as totalActivations,
-                COALESCE(SUM(a.amount_paid), 0) as totalRevenue,
-                COUNT(DISTINCT a.cart_pusher_id) as uniqueCartPushers
-             FROM activations a
-             WHERE a.officer_id = ?
-               AND DATE(a.activation_date) BETWEEN ? AND ?`,
-            summaryParams
-        );
+        let summaryRows = [{ totalActivations: 0, totalRevenue: 0, uniqueCartPushers: 0 }];
+        let verificationCount = [{ totalVerifications: 0 }];
+
+        try {
+            summaryRows = await db.query(
+                `SELECT 
+                    COUNT(a.id) as totalActivations,
+                    COALESCE(SUM(a.amount_paid), 0) as totalRevenue,
+                    COUNT(DISTINCT a.cart_pusher_phone) as uniqueCartPushers
+                 FROM activations a
+                 WHERE a.officer_id = ?
+                   AND DATE(a.activation_date) BETWEEN ? AND ?`,
+                summaryParams
+            );
+        } catch (error) {
+            console.log('Activations table not found or error:', error.code);
+        }
 
         // Count verifications
-        const [verificationCount] = await pool.execute(
-            `SELECT COUNT(id) as totalVerifications
-             FROM verifications
-             WHERE officer_id = ?
-               AND DATE(verified_at) BETWEEN ? AND ?`,
-            summaryParams
-        );
+        try {
+            verificationCount = await db.query(
+                `SELECT COUNT(id) as totalVerifications
+                 FROM verifications
+                 WHERE officer_id = ?
+                   AND DATE(verified_at) BETWEEN ? AND ?`,
+                summaryParams
+            );
+        } catch (error) {
+            console.log('Verifications table not found or error:', error.code);
+        }
 
-        // Get activations
+        // Get activations with graceful error handling
         let activations = [];
         if (!type || type === 'activation') {
-            const [activationRows] = await pool.execute(
-                `SELECT 
-                    CONCAT('ACT-', a.id) as id,
-                    'activation' as type,
-                    s.sticker_code as sticker_id,
-                    a.amount_paid as amount,
-                    a.activation_date as timestamp,
-                    cp.phone_number as cart_pusher_contact,
-                    cp.name as cart_pusher_name,
-                    a.payment_method,
-                    a.duration_months,
-                    a.receipt_number
-                 FROM activations a
-                 JOIN stickers s ON a.sticker_id = s.id
-                 LEFT JOIN cart_pushers cp ON a.cart_pusher_id = cp.id
-                 WHERE a.officer_id = ? ${whereDateClause}
-                 ORDER BY a.activation_date DESC`,
-                params
-            );
-            activations = activationRows;
+            try {
+                activations = await db.query(
+                    `SELECT 
+                        CONCAT('ACT-', a.id) as id,
+                        'activation' as type,
+                        s.sticker_code as sticker_id,
+                        a.amount_paid as amount,
+                        a.activation_date as timestamp,
+                        a.cart_pusher_phone as cart_pusher_contact,
+                        a.cart_pusher_name as cart_pusher_name,
+                        a.payment_method,
+                        a.duration_months,
+                        a.receipt_number
+                     FROM activations a
+                     JOIN stickers s ON a.sticker_id = s.id
+                     WHERE a.officer_id = ? ${whereDateClause}
+                     ORDER BY a.activation_date DESC`,
+                    params
+                );
+            } catch (error) {
+                console.log('Error fetching activations:', error.code);
+            }
         }
 
         // Build date filter for verifications
@@ -111,24 +124,26 @@ exports.getActivityBreakdown = async (req, res) => {
             ? `AND ${verificationDateFilter.join(' AND ')}`
             : '';
 
-        // Get verifications
+        // Get verifications with graceful error handling
         let verifications = [];
         if (!type || type === 'verification') {
-            const [verificationRows] = await pool.execute(
-                `SELECT 
-                    CONCAT('VER-', v.id) as id,
-                    'verification' as type,
-                    s.sticker_code as sticker_id,
-                    v.status_at_verification as status,
-                    v.is_valid,
-                    v.verified_at as timestamp
-                 FROM verifications v
-                 JOIN stickers s ON v.sticker_id = s.id
-                 WHERE v.officer_id = ? ${whereVerificationDateClause}
-                 ORDER BY v.verified_at DESC`,
-                verificationParams
-            );
-            verifications = verificationRows;
+            try {
+                verifications = await db.query(
+                    `SELECT 
+                        CONCAT('VER-', v.id) as id,
+                        'verification' as type,
+                        s.sticker_code as sticker_id,
+                        v.status_at_verification as status,
+                        v.verified_at as timestamp
+                     FROM verifications v
+                     JOIN stickers s ON v.sticker_id = s.id
+                     WHERE v.officer_id = ? ${whereVerificationDateClause}
+                     ORDER BY v.verified_at DESC`,
+                    verificationParams
+                );
+            } catch (error) {
+                console.log('Error fetching verifications:', error.code);
+            }
         }
 
         // Combine and sort activities
@@ -241,50 +256,66 @@ exports.getSalesReports = async (req, res) => {
                 break;
         }
 
-        // Get sales data grouped by date
-        const [salesData] = await pool.execute(
-            `SELECT 
-                DATE_FORMAT(a.activation_date, ?) as period,
-                COUNT(a.id) as total_activations,
-                COALESCE(SUM(a.amount_paid), 0) as total_revenue,
-                AVG(a.amount_paid) as avg_transaction,
-                MIN(a.amount_paid) as min_transaction,
-                MAX(a.amount_paid) as max_transaction,
-                COUNT(DISTINCT a.cart_pusher_id) as unique_cart_pushers
-             FROM activations a
-             WHERE a.officer_id = ?
-               AND DATE(a.activation_date) BETWEEN ? AND ?
-             GROUP BY period
-             ORDER BY period ASC`,
-            [dateFormat, userId, start, end]
-        );
+        // Get sales data grouped by date with graceful error handling
+        let salesData = [];
+        let paymentBreakdown = [];
+        let durationBreakdown = [];
+
+        try {
+            salesData = await db.query(
+                `SELECT 
+                    DATE_FORMAT(a.activation_date, ?) as period,
+                    COUNT(a.id) as total_activations,
+                    COALESCE(SUM(a.amount_paid), 0) as total_revenue,
+                    AVG(a.amount_paid) as avg_transaction,
+                    MIN(a.amount_paid) as min_transaction,
+                    MAX(a.amount_paid) as max_transaction,
+                    COUNT(DISTINCT a.cart_pusher_phone) as unique_cart_pushers
+                 FROM activations a
+                 WHERE a.officer_id = ?
+                   AND DATE(a.activation_date) BETWEEN ? AND ?
+                 GROUP BY period
+                 ORDER BY period ASC`,
+                [dateFormat, userId, start, end]
+            );
+        } catch (error) {
+            console.log('Error fetching sales data:', error.code);
+        }
 
         // Get payment method breakdown
-        const [paymentBreakdown] = await pool.execute(
-            `SELECT 
-                a.payment_method,
-                COUNT(a.id) as count,
-                COALESCE(SUM(a.amount_paid), 0) as total_revenue
-             FROM activations a
-             WHERE a.officer_id = ?
-               AND DATE(a.activation_date) BETWEEN ? AND ?
-             GROUP BY a.payment_method`,
-            [userId, start, end]
-        );
+        try {
+            paymentBreakdown = await db.query(
+                `SELECT 
+                    a.payment_method,
+                    COUNT(a.id) as count,
+                    COALESCE(SUM(a.amount_paid), 0) as total_revenue
+                 FROM activations a
+                 WHERE a.officer_id = ?
+                   AND DATE(a.activation_date) BETWEEN ? AND ?
+                 GROUP BY a.payment_method`,
+                [userId, start, end]
+            );
+        } catch (error) {
+            console.log('Error fetching payment breakdown:', error.code);
+        }
 
         // Get duration breakdown
-        const [durationBreakdown] = await pool.execute(
-            `SELECT 
-                a.duration_months,
-                COUNT(a.id) as count,
-                COALESCE(SUM(a.amount_paid), 0) as total_revenue
-             FROM activations a
-             WHERE a.officer_id = ?
-               AND DATE(a.activation_date) BETWEEN ? AND ?
-             GROUP BY a.duration_months
-             ORDER BY a.duration_months ASC`,
-            [userId, start, end]
-        );
+        try {
+            durationBreakdown = await db.query(
+                `SELECT 
+                    a.duration_months,
+                    COUNT(a.id) as count,
+                    COALESCE(SUM(a.amount_paid), 0) as total_revenue
+                 FROM activations a
+                 WHERE a.officer_id = ?
+                   AND DATE(a.activation_date) BETWEEN ? AND ?
+                 GROUP BY a.duration_months
+                 ORDER BY a.duration_months ASC`,
+                [userId, start, end]
+            );
+        } catch (error) {
+            console.log('Error fetching duration breakdown:', error.code);
+        }
 
         // Calculate totals
         const totalActivations = salesData.reduce((sum, row) => sum + row.total_activations, 0);
