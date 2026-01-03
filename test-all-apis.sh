@@ -53,12 +53,12 @@ DASHBOARD_RESPONSE=$(curl -s "$BASE_URL/officer/dashboard/overview" \
 
 echo "$DASHBOARD_RESPONSE" | python3 -m json.tool
 
-# Check if successful
+# Check if successful (grep returns 0 on match, 1 on no match)
 if echo "$DASHBOARD_RESPONSE" | grep -q '"success": true'; then
     echo -e "${GREEN}✅ PASSED: Dashboard endpoint working${NC}"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else
-    echo -e "${RED}❌ FAILED: Dashboard endpoint failed${NC}"
+    echo -e "${RED}❌ FAILED: Dashboard endpoint returned error${NC}"
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 echo ""
@@ -82,7 +82,7 @@ if echo "$STICKER_RESPONSE" | grep -q '"success": true'; then
     PRICE=$(echo "$STICKER_RESPONSE" | python3 -c 'import sys, json; print(json.load(sys.stdin).get("data", {}).get("pricePerMonth", 0))' 2>/dev/null)
     echo "Price per month: ₦$PRICE"
 else
-    echo -e "${RED}❌ FAILED: Sticker details endpoint failed${NC}"
+    echo -e "${RED}❌ FAILED: Sticker details returned error${NC}"
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 echo ""
@@ -100,7 +100,7 @@ if echo "$ACTIVITIES_RESPONSE" | grep -q '"success": true'; then
     echo -e "${GREEN}✅ PASSED: Activities endpoint working${NC}"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else
-    echo -e "${RED}❌ FAILED: Activities endpoint failed${NC}"
+    echo -e "${RED}❌ FAILED: Activities endpoint returned error${NC}"
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 echo ""
@@ -118,7 +118,7 @@ if echo "$SALES_RESPONSE" | grep -q '"success": true'; then
     echo -e "${GREEN}✅ PASSED: Sales reports endpoint working${NC}"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else
-    echo -e "${RED}❌ FAILED: Sales reports endpoint failed${NC}"
+    echo -e "${RED}❌ FAILED: Sales reports endpoint returned error${NC}"
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 echo ""
