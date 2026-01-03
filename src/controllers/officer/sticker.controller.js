@@ -1,5 +1,5 @@
 // src/controllers/officer/sticker.controller.js
-const { pool } = require('../../config/database');
+const db = require('../../config/database');
 const bcrypt = require('bcryptjs');
 
 /**
@@ -13,28 +13,49 @@ exports.getStickerDetails = async (req, res) => {
         const { stickerID } = req.params;
         console.log('Sticker ID:', stickerID);
 
-        // Find sticker by sticker_code
-        const [stickers] = await pool.execute(
-            `SELECT s.*, 
-                    l.sticker_price as price_per_month,
-                    a.activation_date as activated_at,
-                    a.expiry_date,
-                    a.duration_months,
-                    a.amount_paid,
-                    cp.name as cart_pusher_name,
-                    cp.phone_number as cart_pusher_phone,
-                    u.officer_code as activated_by_officer_id,
-                    u.name as activated_by_officer_name
-             FROM stickers s
-             LEFT JOIN lgas l ON s.lga_id = l.id
-             LEFT JOIN activations a ON s.id = a.sticker_id
-             LEFT JOIN cart_pushers cp ON a.cart_pusher_id = cp.id
-             LEFT JOIN users u ON a.officer_id = u.id
-             WHERE s.sticker_code = ?
-             ORDER BY a.activation_date DESC
-             LIMIT 1`,
-            [stickerID]
-        );
+        // Find sticker by sticker_code with graceful error handling
+        let stickers = [];
+        try {
+            stickers = await db.query(
+                `SELECT s.*, 
+                        l.name as lga_name,
+                        l.sticker_price as price_per_month,
+                        a.activation_date as activated_at,
+                        a.expires_at as expiry_date,
+                        a.duration_months,
+                        a.amount_paid,
+                        a.cart_pusher_name,
+                        a.cart_pusher_phone,
+                        u.officer_code as activated_by_officer_id,
+                        u.name as activated_by_officer_name
+                 FROM stickers s
+                 LEFT JOIN lgas l ON s.lga_id = l.id
+                 LEFT JOIN activations a ON s.id = a.sticker_id
+                 LEFT JOIN users u ON a.officer_id = u.id
+                 WHERE s.sticker_code = ?
+                 ORDER BY a.activation_date DESC
+                 LIMIT 1`,
+                [stickerID]
+            );
+        } catch (error) {
+            console.log('Error querying sticker with activations, trying without:', error.code);
+            // Fallback: query without activations table
+            try {
+                stickers = await db.query(
+                    `SELECT s.*, 
+                            l.name as lga_name,
+                            l.sticker_price as price_per_month
+                     FROM stickers s
+                     LEFT JOIN lgas l ON s.lga_id = l.id
+                     WHERE s.sticker_code = ?
+                     LIMIT 1`,
+                    [stickerID]
+                );
+            } catch (fallbackError) {
+                console.error('Error in fallback query:', fallbackError);
+                throw fallbackError;
+            }
+        }
 
         if (stickers.length === 0) {
             return res.status(404).json({
