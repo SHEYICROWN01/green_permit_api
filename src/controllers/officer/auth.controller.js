@@ -2,6 +2,19 @@
 const db = require('../../config/database');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const path = require('path');
+
+// Debug logging function
+const debugLog = (message, data = {}) => {
+    const logEntry = `[${new Date().toISOString()}] ${message} ${JSON.stringify(data)}\n`;
+    console.log(logEntry.trim());
+    try {
+        fs.appendFileSync(path.join(__dirname, '../../..', 'officer-login-debug.log'), logEntry);
+    } catch (e) {
+        // Ignore write errors
+    }
+};
 
 /**
  * @desc    Officer login with username/password (or legacy officer ID/PIN)
@@ -14,12 +27,20 @@ const bcrypt = require('bcryptjs');
  */
 exports.login = async (req, res) => {
     try {
+        debugLog('OFFICER LOGIN REQUEST RECEIVED');
         console.log('\n=== OFFICER LOGIN REQUEST ===');
         const { username, password, officerId, pin } = req.body;
+        debugLog('Request body', { username, hasPassword: !!password, officerId, hasPin: !!pin });
 
         // Determine login method
         const isNewMethod = username && password;
         const isLegacyMethod = officerId && pin;
+
+        debugLog('Login method determined', {
+            isNewMethod,
+            isLegacyMethod,
+            identifier: isNewMethod ? username : officerId
+        });
 
         console.log('Login method:', {
             type: isNewMethod ? 'username/password' : 'officerId/pin',
@@ -197,11 +218,13 @@ exports.login = async (req, res) => {
         });
 
     } catch (error) {
+        debugLog('ERROR in officer login', { error: error.message, stack: error.stack });
         console.error('ERROR in officer login:', error);
         res.status(500).json({
             success: false,
             message: 'Login failed',
-            errorCode: 'SERVER_ERROR'
+            errorCode: 'SERVER_ERROR',
+            debug: error.message // Add error message for debugging
         });
     }
 };
