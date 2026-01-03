@@ -16,71 +16,98 @@ exports.getDashboardOverview = async (req, res) => {
         const targetDate = date || new Date().toISOString().split('T')[0];
         console.log('Officer:', { userId, officerId, targetDate });
 
-        // Get today's statistics for this officer
-        const todayStats = await db.query(
-            `SELECT 
-                COUNT(a.id) as stickers_activated,
-                COALESCE(SUM(a.amount_paid), 0) as revenue
-             FROM activations a
-             WHERE a.officer_id = ?
-             AND DATE(a.activation_date) = ?`,
-            [userId, targetDate]
-        );
+        // Initialize default values
+        let todayStats = [{ stickers_activated: 0, revenue: 0 }];
+        let verificationStats = [{ verifications_performed: 0 }];
+        let overallStats = [{ total_cart_pushers_registered: 0, active_permits: 0, expired_permits: 0 }];
+        let activations = [];
+        let verifications = [];
 
-        // Get today's verification count
-        const verificationStats = await db.query(
-            `SELECT COUNT(id) as verifications_performed
-             FROM verifications
-             WHERE officer_id = ?
-             AND DATE(verified_at) = ?`,
-            [userId, targetDate]
-        );
+        // Try to get today's statistics for this officer
+        try {
+            todayStats = await db.query(
+                `SELECT 
+                    COUNT(a.id) as stickers_activated,
+                    COALESCE(SUM(a.amount_paid), 0) as revenue
+                 FROM activations a
+                 WHERE a.officer_id = ?
+                 AND DATE(a.activation_date) = ?`,
+                [userId, targetDate]
+            );
+        } catch (error) {
+            console.log('Activations table not found or error:', error.code);
+        }
 
-        // Get overall statistics for this officer's LGA
-        const overallStats = await db.query(
-            `SELECT 
-                COUNT(DISTINCT a.cart_pusher_id) as total_cart_pushers_registered,
-                COUNT(CASE WHEN s.status = 'active' THEN 1 END) as active_permits,
-                COUNT(CASE WHEN s.status = 'expired' THEN 1 END) as expired_permits
-             FROM stickers s
-             LEFT JOIN activations a ON s.id = a.sticker_id
-             WHERE s.lga_id = ?`,
-            [lgaId]
-        );
+        // Try to get today's verification count
+        try {
+            verificationStats = await db.query(
+                `SELECT COUNT(id) as verifications_performed
+                 FROM verifications
+                 WHERE officer_id = ?
+                 AND DATE(verified_at) = ?`,
+                [userId, targetDate]
+            );
+        } catch (error) {
+            console.log('Verifications table not found or error:', error.code);
+        }
 
-        // Get recent activities (last 10 activations and verifications combined)
-        const activations = await db.query(
-            `SELECT 
-                CONCAT('ACT-', a.id) as id,
-                'activation' as type,
-                s.sticker_code as sticker_id,
-                a.amount_paid as amount,
-                a.activation_date as timestamp,
-                cp.phone_number as cart_pusher_contact,
-                cp.name as cart_pusher_name
-             FROM activations a
-             JOIN stickers s ON a.sticker_id = s.id
-             LEFT JOIN cart_pushers cp ON a.cart_pusher_id = cp.id
-             WHERE a.officer_id = ?
-             ORDER BY a.activation_date DESC
-             LIMIT 5`,
-            [userId]
-        );
+        // Try to get overall statistics for this officer's LGA
+        try {
+            overallStats = await db.query(
+                `SELECT 
+                    COUNT(DISTINCT a.cart_pusher_id) as total_cart_pushers_registered,
+                    COUNT(CASE WHEN s.status = 'active' THEN 1 END) as active_permits,
+                    COUNT(CASE WHEN s.status = 'expired' THEN 1 END) as expired_permits
+                 FROM stickers s
+                 LEFT JOIN activations a ON s.id = a.sticker_id
+                 WHERE s.lga_id = ?`,
+                [lgaId]
+            );
+        } catch (error) {
+            console.log('Error fetching overall stats:', error.code);
+        }
 
-        const verifications = await db.query(
-            `SELECT 
-                CONCAT('VER-', v.id) as id,
-                'verification' as type,
-                s.sticker_code as sticker_id,
-                v.status_at_verification as status,
-                v.verified_at as timestamp
-             FROM verifications v
-             JOIN stickers s ON v.sticker_id = s.id
-             WHERE v.officer_id = ?
-             ORDER BY v.verified_at DESC
-             LIMIT 5`,
-            [userId]
-        );
+        // Try to get recent activities (last 10 activations and verifications combined)
+        try {
+            activations = await db.query(
+                `SELECT 
+                    CONCAT('ACT-', a.id) as id,
+                    'activation' as type,
+                    s.sticker_code as sticker_id,
+                    a.amount_paid as amount,
+                    a.activation_date as timestamp,
+                    cp.phone_number as cart_pusher_contact,
+                    cp.name as cart_pusher_name
+                 FROM activations a
+                 JOIN stickers s ON a.sticker_id = s.id
+                 LEFT JOIN cart_pushers cp ON a.cart_pusher_id = cp.id
+                 WHERE a.officer_id = ?
+                 ORDER BY a.activation_date DESC
+                 LIMIT 5`,
+                [userId]
+            );
+        } catch (error) {
+            console.log('Error fetching activations:', error.code);
+        }
+
+        try {
+            verifications = await db.query(
+                `SELECT 
+                    CONCAT('VER-', v.id) as id,
+                    'verification' as type,
+                    s.sticker_code as sticker_id,
+                    v.status_at_verification as status,
+                    v.verified_at as timestamp
+                 FROM verifications v
+                 JOIN stickers s ON v.sticker_id = s.id
+                 WHERE v.officer_id = ?
+                 ORDER BY v.verified_at DESC
+                 LIMIT 5`,
+                [userId]
+            );
+        } catch (error) {
+            console.log('Error fetching verifications:', error.code);
+        }
 
         // Combine and sort activities
         const recentActivities = [...activations, ...verifications]
