@@ -13,7 +13,7 @@ exports.getStickerDetails = async (req, res) => {
         const { stickerID } = req.params;
         console.log('Sticker ID:', stickerID);
 
-        // Find sticker by sticker_code with graceful error handling
+        // Find sticker by code with graceful error handling
         let stickers = [];
         try {
             stickers = await db.query(
@@ -32,7 +32,7 @@ exports.getStickerDetails = async (req, res) => {
                  LEFT JOIN lgas l ON s.lga_id = l.id
                  LEFT JOIN activations a ON s.id = a.sticker_id
                  LEFT JOIN users u ON a.officer_id = u.id
-                 WHERE s.sticker_code = ?
+                 WHERE s.code = ?
                  ORDER BY a.activation_date DESC
                  LIMIT 1`,
                 [stickerID]
@@ -47,7 +47,7 @@ exports.getStickerDetails = async (req, res) => {
                             l.sticker_price as price_per_month
                      FROM stickers s
                      LEFT JOIN lgas l ON s.lga_id = l.id
-                     WHERE s.sticker_code = ?
+                     WHERE s.code = ?
                      LIMIT 1`,
                     [stickerID]
                 );
@@ -81,7 +81,7 @@ exports.getStickerDetails = async (req, res) => {
             return res.status(200).json({
                 success: true,
                 data: {
-                    stickerID: sticker.sticker_code,
+                    stickerID: sticker.code,
                     lgaName: sticker.lga_name,
                     status: 'unused',
                     pricePerMonth: parseFloat((sticker.price_per_month / 100).toFixed(2)),
@@ -97,7 +97,7 @@ exports.getStickerDetails = async (req, res) => {
         res.status(200).json({
             success: true,
             data: {
-                stickerID: sticker.sticker_code,
+                stickerID: sticker.code,
                 lgaName: sticker.lga_name,
                 status,
                 pricePerMonth: parseFloat((sticker.price_per_month / 100).toFixed(2)),
@@ -186,10 +186,10 @@ exports.activateSticker = async (req, res) => {
 
         // Check if sticker exists and is unused - get LGA price at the same time
         const [stickers] = await connection.execute(
-            `SELECT s.id, s.sticker_code, s.lga_id, s.status, l.sticker_price 
+            `SELECT s.id, s.code, s.lga_id, s.status, l.sticker_price 
              FROM stickers s
              LEFT JOIN lgas l ON s.lga_id = l.id
-             WHERE s.sticker_code = ? FOR UPDATE`,
+             WHERE s.code = ? FOR UPDATE`,
             [stickerID]
         );
 
@@ -342,7 +342,7 @@ exports.activateSticker = async (req, res) => {
             message: 'Sticker activated successfully',
             data: {
                 activationID,
-                stickerID: sticker.sticker_code,
+                stickerID: sticker.code,
                 activatedAt: activationDate,
                 expiryDate,
                 durationMonths,
@@ -398,7 +398,7 @@ exports.verifySticker = async (req, res) => {
              FROM stickers s
              LEFT JOIN activations a ON s.id = a.sticker_id
              LEFT JOIN cart_pushers cp ON a.cart_pusher_id = cp.id
-             WHERE s.sticker_code = ?
+             WHERE s.code = ?
              ORDER BY a.activation_date DESC
              LIMIT 1`,
             [stickerID]
@@ -450,7 +450,7 @@ exports.verifySticker = async (req, res) => {
             return res.status(200).json({
                 success: true,
                 data: {
-                    stickerID: sticker.sticker_code,
+                    stickerID: sticker.code,
                     status: 'unused',
                     isValid: false,
                     lgaName: sticker.lga_name,
@@ -465,7 +465,7 @@ exports.verifySticker = async (req, res) => {
             return res.status(200).json({
                 success: true,
                 data: {
-                    stickerID: sticker.sticker_code,
+                    stickerID: sticker.code,
                     status: 'active',
                     isValid: true,
                     lgaName: sticker.lga_name,
@@ -487,7 +487,7 @@ exports.verifySticker = async (req, res) => {
         res.status(200).json({
             success: true,
             data: {
-                stickerID: sticker.sticker_code,
+                stickerID: sticker.code,
                 status: 'expired',
                 isValid: false,
                 lgaName: sticker.lga_name,
