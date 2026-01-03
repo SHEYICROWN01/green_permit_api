@@ -44,7 +44,18 @@ class StickerBatch {
      * @returns {Promise<Object|null>}
      */
     static async findById(id) {
-        const sql = 'SELECT * FROM sticker_batches WHERE id = ?';
+        const sql = `
+            SELECT 
+                sb.*,
+                l.name as lga_name,
+                l.code as lga_code,
+                l.state as state_name,
+                l.sticker_price as price_per_sticker,
+                l.logo_url as lga_logo_url
+            FROM sticker_batches sb
+            LEFT JOIN lgas l ON sb.lga_id = l.id
+            WHERE sb.id = ?
+        `;
         const [rows] = await pool.execute(sql, [id]);
 
         if (rows.length === 0) return null;
@@ -61,7 +72,18 @@ class StickerBatch {
      * @returns {Promise<Object|null>}
      */
     static async findByBatchId(batchCode) {
-        const sql = 'SELECT * FROM sticker_batches WHERE batch_code = ?';
+        const sql = `
+            SELECT 
+                sb.*,
+                l.name as lga_name,
+                l.code as lga_code,
+                l.state as state_name,
+                l.sticker_price as price_per_sticker,
+                l.logo_url as lga_logo_url
+            FROM sticker_batches sb
+            LEFT JOIN lgas l ON sb.lga_id = l.id
+            WHERE sb.batch_code = ?
+        `;
         const [rows] = await pool.execute(sql, [batchCode]);
 
         if (rows.length === 0) return null;
