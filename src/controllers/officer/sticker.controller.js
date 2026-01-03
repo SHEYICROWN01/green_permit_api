@@ -1,5 +1,6 @@
 // src/controllers/officer/sticker.controller.js
 const db = require('../../config/database');
+const { pool } = require('../../config/database');
 const bcrypt = require('bcryptjs');
 
 /**
