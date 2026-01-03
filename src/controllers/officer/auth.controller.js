@@ -1,5 +1,5 @@
 // src/controllers/officer/auth.controller.js
-const { pool } = require('../../config/database');
+const db = require('../../config/database');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
@@ -59,9 +59,9 @@ exports.login = async (req, res) => {
         }
 
         // Find officer
-        const [officers] = await pool.execute(query, queryParams);
+        const officers = await db.query(query, queryParams);
 
-        if (officers.length === 0) {
+        if (!officers || officers.length === 0) {
             console.log('Officer not found:', isNewMethod ? username : officerId);
             return res.status(401).json({
                 success: false,
@@ -132,7 +132,7 @@ exports.login = async (req, res) => {
                 });
             }
 
-            await pool.execute(
+            await db.query(
                 'UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?',
                 [failedAttempts, locked_until, officer.id]
             );
@@ -157,7 +157,7 @@ exports.login = async (req, res) => {
         console.log(isNewMethod ? 'Password verified successfully' : 'PIN verified successfully');
 
         // Reset failed attempts and update last login
-        await pool.execute(
+        await db.query(
             'UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?',
             [officer.id]
         );
