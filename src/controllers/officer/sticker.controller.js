@@ -19,6 +19,8 @@ exports.getStickerDetails = async (req, res) => {
             stickers = await db.query(
                 `SELECT s.*, 
                         l.name as lga_name,
+                        l.code as lga_code,
+                        l.state as state_name,
                         l.sticker_price as price_per_month,
                         a.activation_date as activated_at,
                         a.expires_at as expiry_date,
@@ -44,6 +46,8 @@ exports.getStickerDetails = async (req, res) => {
                 stickers = await db.query(
                     `SELECT s.*, 
                             l.name as lga_name,
+                            l.code as lga_code,
+                            l.state as state_name,
                             l.sticker_price as price_per_month
                      FROM stickers s
                      LEFT JOIN lgas l ON s.lga_id = l.id
@@ -82,12 +86,17 @@ exports.getStickerDetails = async (req, res) => {
                 success: true,
                 data: {
                     stickerID: sticker.code,
+                    code: sticker.code,
                     lgaName: sticker.lga_name,
+                    lgaCode: sticker.lga_code,
+                    stateName: sticker.state_name,
                     status: 'unused',
                     pricePerMonth: parseFloat((sticker.price_per_month / 100).toFixed(2)),
                     createdAt: sticker.created_at,
                     activatedAt: null,
                     expiryDate: null,
+                    durationMonths: null,
+                    amountPaid: null,
                     cartPusher: null
                 }
             });
@@ -98,7 +107,10 @@ exports.getStickerDetails = async (req, res) => {
             success: true,
             data: {
                 stickerID: sticker.code,
+                code: sticker.code,
                 lgaName: sticker.lga_name,
+                lgaCode: sticker.lga_code,
+                stateName: sticker.state_name,
                 status,
                 pricePerMonth: parseFloat((sticker.price_per_month / 100).toFixed(2)),
                 activatedAt: sticker.activated_at,
