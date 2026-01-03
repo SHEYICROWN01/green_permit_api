@@ -53,8 +53,8 @@ DASHBOARD_RESPONSE=$(curl -s "$BASE_URL/officer/dashboard/overview" \
 
 echo "$DASHBOARD_RESPONSE" | python3 -m json.tool
 
-# Check if successful (grep returns 0 on match, 1 on no match)
-if echo "$DASHBOARD_RESPONSE" | grep -q '"success": true'; then
+# Check if successful - check for both "success": true and "success":true (no space)
+if echo "$DASHBOARD_RESPONSE" | grep -qE '"success":\s*true'; then
     echo -e "${GREEN}✅ PASSED: Dashboard endpoint working${NC}"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else
@@ -74,7 +74,7 @@ STICKER_RESPONSE=$(curl -s "$BASE_URL/officer/stickers/$STICKER_ID" \
 echo "$STICKER_RESPONSE" | python3 -m json.tool
 
 # Check if successful and has price
-if echo "$STICKER_RESPONSE" | grep -q '"success": true'; then
+if echo "$STICKER_RESPONSE" | grep -qE '"success":\s*true'; then
     echo -e "${GREEN}✅ PASSED: Sticker details endpoint working${NC}"
     TESTS_PASSED=$((TESTS_PASSED + 1))
     
@@ -96,7 +96,7 @@ ACTIVITIES_RESPONSE=$(curl -s "$BASE_URL/officer/activities?page=1&limit=10" \
 
 echo "$ACTIVITIES_RESPONSE" | python3 -m json.tool
 
-if echo "$ACTIVITIES_RESPONSE" | grep -q '"success": true'; then
+if echo "$ACTIVITIES_RESPONSE" | grep -qE '"success":\s*true'; then
     echo -e "${GREEN}✅ PASSED: Activities endpoint working${NC}"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else
@@ -114,7 +114,7 @@ SALES_RESPONSE=$(curl -s "$BASE_URL/officer/reports/sales?groupBy=day" \
 
 echo "$SALES_RESPONSE" | python3 -m json.tool
 
-if echo "$SALES_RESPONSE" | grep -q '"success": true'; then
+if echo "$SALES_RESPONSE" | grep -qE '"success":\s*true'; then
     echo -e "${GREEN}✅ PASSED: Sales reports endpoint working${NC}"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else
