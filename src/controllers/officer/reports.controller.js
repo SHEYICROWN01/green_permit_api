@@ -88,16 +88,17 @@ exports.getActivityBreakdown = async (req, res) => {
                     `SELECT 
                         CONCAT('ACT-', a.id) as id,
                         'activation' as type,
-                        s.sticker_code as sticker_id,
+                        s.code as sticker_id,
                         a.amount_paid as amount,
                         a.activation_date as timestamp,
-                        a.cart_pusher_phone as cart_pusher_contact,
-                        a.cart_pusher_name as cart_pusher_name,
+                        cp.phone_number as cart_pusher_contact,
+                        cp.name as cart_pusher_name,
                         a.payment_method,
                         a.duration_months,
                         a.receipt_number
                      FROM activations a
                      JOIN stickers s ON a.sticker_id = s.id
+                     LEFT JOIN cart_pushers cp ON a.cart_pusher_id = cp.id
                      WHERE a.officer_id = ? ${whereDateClause}
                      ORDER BY a.activation_date DESC`,
                     params
@@ -132,7 +133,7 @@ exports.getActivityBreakdown = async (req, res) => {
                     `SELECT 
                         CONCAT('VER-', v.id) as id,
                         'verification' as type,
-                        s.sticker_code as sticker_id,
+                        s.code as sticker_id,
                         v.status_at_verification as status,
                         v.verified_at as timestamp
                      FROM verifications v
@@ -423,7 +424,7 @@ exports.exportReport = async (req, res) => {
             const [salesRows] = await pool.execute(
                 `SELECT 
                     a.id as activation_id,
-                    s.sticker_code,
+                    s.code as sticker_code,
                     a.activation_date,
                     a.expiry_date,
                     a.duration_months,
@@ -466,7 +467,7 @@ exports.exportReport = async (req, res) => {
                 `SELECT 
                     CONCAT('ACT-', a.id) as id,
                     'activation' as type,
-                    s.sticker_code,
+                    s.code as sticker_code,
                     a.activation_date as timestamp,
                     a.amount_paid,
                     cp.name as cart_pusher_name,
@@ -484,7 +485,7 @@ exports.exportReport = async (req, res) => {
                 `SELECT 
                     CONCAT('VER-', v.id) as id,
                     'verification' as type,
-                    s.sticker_code,
+                    s.code as sticker_code,
                     v.verified_at as timestamp,
                     NULL as amount_paid,
                     NULL as cart_pusher_name,

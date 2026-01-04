@@ -24,16 +24,17 @@ exports.getStickerDetails = async (req, res) => {
                         l.state as state_name,
                         l.sticker_price as price_per_month,
                         a.activation_date as activated_at,
-                        a.expires_at as expiry_date,
+                        a.expiry_date as expiry_date,
                         a.duration_months,
                         a.amount_paid,
-                        a.cart_pusher_name,
-                        a.cart_pusher_phone,
+                        cp.name as cart_pusher_name,
+                        cp.phone_number as cart_pusher_phone,
                         u.officer_code as activated_by_officer_id,
                         u.name as activated_by_officer_name
                  FROM stickers s
                  LEFT JOIN lgas l ON s.lga_id = l.id
                  LEFT JOIN activations a ON s.id = a.sticker_id
+                 LEFT JOIN cart_pushers cp ON a.cart_pusher_id = cp.id
                  LEFT JOIN users u ON a.officer_id = u.id
                  WHERE s.code = ?
                  ORDER BY a.activation_date DESC

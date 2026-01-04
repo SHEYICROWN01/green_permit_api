@@ -73,7 +73,7 @@ exports.getDashboardOverview = async (req, res) => {
                 `SELECT 
                     CONCAT('ACT-', a.id) as id,
                     'activation' as type,
-                    s.sticker_code as sticker_id,
+                    s.code as sticker_id,
                     a.amount_paid as amount,
                     a.activation_date as timestamp,
                     cp.phone_number as cart_pusher_contact,
@@ -95,7 +95,7 @@ exports.getDashboardOverview = async (req, res) => {
                 `SELECT 
                     CONCAT('VER-', v.id) as id,
                     'verification' as type,
-                    s.sticker_code as sticker_id,
+                    s.code as sticker_id,
                     v.status_at_verification as status,
                     v.verified_at as timestamp
                  FROM verifications v
