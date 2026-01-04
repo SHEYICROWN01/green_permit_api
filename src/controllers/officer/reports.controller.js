@@ -57,7 +57,7 @@ exports.getActivityBreakdown = async (req, res) => {
                 `SELECT 
                     COUNT(a.id) as totalActivations,
                     COALESCE(SUM(a.amount_paid), 0) as totalRevenue,
-                    COUNT(DISTINCT a.cart_pusher_phone) as uniqueCartPushers
+                    COUNT(DISTINCT a.cart_pusher_id) as uniqueCartPushers
                  FROM activations a
                  WHERE a.officer_id = ?
                    AND DATE(a.activation_date) BETWEEN ? AND ?`,
@@ -271,7 +271,7 @@ exports.getSalesReports = async (req, res) => {
                     AVG(a.amount_paid) as avg_transaction,
                     MIN(a.amount_paid) as min_transaction,
                     MAX(a.amount_paid) as max_transaction,
-                    COUNT(DISTINCT a.cart_pusher_phone) as unique_cart_pushers
+                    COUNT(DISTINCT a.cart_pusher_id) as unique_cart_pushers
                  FROM activations a
                  WHERE a.officer_id = ?
                    AND DATE(a.activation_date) BETWEEN ? AND ?
