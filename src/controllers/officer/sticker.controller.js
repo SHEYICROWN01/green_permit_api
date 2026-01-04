@@ -338,11 +338,9 @@ exports.activateSticker = async (req, res) => {
                 status = 'active',
                 activated_by = ?,
                 activated_at = NOW(),
-                assigned_to_name = ?,
-                assigned_to_phone = ?,
                 expires_at = ?
              WHERE id = ?`,
-            [userId, cartPusherName, cartPusherContact, expiryDate, sticker.id]
+            [userId, expiryDate, sticker.id]
         );
 
         await connection.commit();
