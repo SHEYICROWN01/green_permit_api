@@ -394,29 +394,60 @@ exports.activateSticker = async (req, res) => {
  */
 exports.verifySticker = async (req, res) => {
     try {
-        console.log('\n=== VERIFY STICKER ===');
+        console.log('=== VERIFY STICKER CONTROLLER CALLED ===', new Date());
         const { stickerID } = req.params;
         console.log('Sticker ID:', stickerID);
 
-        // Find sticker with activation details
-        const [stickers] = await pool.execute(
-            `SELECT s.*, 
-                    a.activation_date as activated_at,
-                    a.expiry_date,
-                    a.duration_months,
-                    a.amount_paid,
-                    cp.name as cart_pusher_name,
-                    cp.phone_number as cart_pusher_phone
-             FROM stickers s
-             LEFT JOIN activations a ON s.id = a.sticker_id
-             LEFT JOIN cart_pushers cp ON a.cart_pusher_id = cp.id
-             WHERE s.code = ?
-             ORDER BY a.activation_date DESC
-             LIMIT 1`,
-            [stickerID]
-        );
+        // Find sticker with activation details and LGA information
+        console.log('About to query for sticker:', stickerID, new Date());
+        let stickers = [];
 
+        try {
+            stickers = await db.query(
+                `SELECT s.*, 
+                        l.name as lga_name,
+                        l.code as lga_code,
+                        l.state as state_name,
+                        a.activation_date as activated_at,
+                        a.expiry_date,
+                        a.duration_months,
+                        a.amount_paid,
+                        cp.name as cart_pusher_name,
+                        cp.phone_number as cart_pusher_phone
+                 FROM stickers s
+                 LEFT JOIN lgas l ON s.lga_id = l.id
+                 LEFT JOIN activations a ON s.id = a.sticker_id
+                 LEFT JOIN cart_pushers cp ON a.cart_pusher_id = cp.id
+                 WHERE s.code = ?
+                 ORDER BY a.activation_date DESC
+                 LIMIT 1`,
+                [stickerID]
+            );
+        } catch (queryError) {
+            console.log('Error with full query, trying fallback without activations:', queryError.code);
+            // Fallback if tables don't exist
+            try {
+                stickers = await db.query(
+                    `SELECT s.*, 
+                            l.name as lga_name,
+                            l.code as lga_code,
+                            l.state as state_name
+                     FROM stickers s
+                     LEFT JOIN lgas l ON s.lga_id = l.id
+                     WHERE s.code = ?
+                     LIMIT 1`,
+                    [stickerID]
+                );
+            } catch (fallbackError) {
+                console.error('Fallback query also failed:', fallbackError);
+                throw fallbackError;
+            }
+        }
+
+
+        console.log('Sticker query result:', stickers, new Date());
         if (stickers.length === 0) {
+            console.log('Sticker not found:', stickerID, new Date());
             return res.status(404).json({
                 success: false,
                 message: 'Sticker not found',
@@ -446,13 +477,22 @@ exports.verifySticker = async (req, res) => {
             }
         }
 
-        // Log verification (if officer is logged in)
+
+        // Log verification (if officer is logged in) - with graceful fallback
         const officerId = req.user?.userId || null;
-        await pool.execute(
-            `INSERT INTO verifications (sticker_id, officer_id, status_at_verification, is_valid)
-             VALUES (?, ?, ?, ?)`,
-            [sticker.id, officerId, status, isValid]
-        );
+        console.log('About to insert verification log:', { stickerId: sticker.id, officerId, status, isValid }, new Date());
+
+        try {
+            await db.query(
+                `INSERT INTO verifications (sticker_id, officer_id, status_at_verification, is_valid)
+                 VALUES (?, ?, ?, ?)`,
+                [sticker.id, officerId, status, isValid]
+            );
+            console.log('Verification log inserted', new Date());
+        } catch (verifyLogError) {
+            // Don't fail the request if we can't log verification
+            console.warn('Could not log verification (table may not exist):', verifyLogError.code);
+        }
 
         console.log('Sticker verified:', { status, isValid });
         console.log('=== VERIFY STICKER SUCCESS ===\n');
@@ -515,7 +555,7 @@ exports.verifySticker = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('ERROR in verifySticker:', error);
+        console.error('ERROR in verifySticker:', error, new Date());
         res.status(500).json({
             success: false,
             message: 'Failed to verify sticker',
