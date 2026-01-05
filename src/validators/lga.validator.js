@@ -81,8 +81,8 @@ const createLGAValidation = [
     body('lga.sticker_price')
         .notEmpty()
         .withMessage('Sticker price is required')
-        .isInt({ min: 100, max: 100000 })
-        .withMessage('Sticker price must be between ₦1.00 and ₦1,000.00 (100-100000 kobo)'),
+        .isInt({ min: 100, max: 5000000 })
+        .withMessage('Sticker price must be between ₦1.00 and ₦50,000.00 (100-5000000 kobo)'),
 
     body('lga.address')
         .optional()
@@ -177,8 +177,8 @@ const updateLGAValidation = [
 
     body('sticker_price')
         .optional()
-        .isInt({ min: 100, max: 100000 })
-        .withMessage('Sticker price must be between ₦1.00 and ₦1,000.00 (100-100000 kobo)'),
+        .isInt({ min: 100, max: 5000000 })
+        .withMessage('Sticker price must be between ₦1.00 and ₦50,000.00 (100-5000000 kobo)'),
 
     body('address')
         .optional()
