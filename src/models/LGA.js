@@ -296,16 +296,17 @@ class LGA {
         const personnelResults = await db.query(personnelSql, [lgaId]);
         const personnel = personnelResults[0];
 
-        // Sticker statistics
+        // Sticker statistics - Fixed to accurately count stickers
         const stickerSql = `
             SELECT 
-                COUNT(*) as stickers_generated,
-                COUNT(CASE WHEN status = 'active' THEN 1 END) as stickers_activated,
-                COUNT(CASE WHEN status = 'unused' THEN 1 END) as stickers_unused,
-                COUNT(CASE WHEN status = 'expired' THEN 1 END) as stickers_expired,
-                ROUND(COUNT(CASE WHEN status = 'active' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) as utilization_rate
-            FROM stickers
-            WHERE lga_id = ?
+                COUNT(DISTINCT s.id) as stickers_generated,
+                COUNT(DISTINCT a.id) as stickers_activated,
+                COUNT(DISTINCT CASE WHEN s.status = 'unused' THEN s.id END) as stickers_unused,
+                COUNT(DISTINCT CASE WHEN s.status = 'expired' THEN s.id END) as stickers_expired,
+                ROUND(COUNT(DISTINCT a.id) * 100.0 / NULLIF(COUNT(DISTINCT s.id), 0), 1) as utilization_rate
+            FROM stickers s
+            LEFT JOIN activations a ON s.id = a.sticker_id
+            WHERE s.lga_id = ?
         `;
         const stickerResults = await db.query(stickerSql, [lgaId]);
         const stickers = stickerResults[0];
