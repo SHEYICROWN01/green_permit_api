@@ -124,19 +124,28 @@ class LGA {
         `;
         const revenueResults = await db.query(revenueSql, [lgaId]);
 
-        // Get sticker stats - Fixed to count actual activations
+        // Get sticker stats - Count stickers owned by LGA and activations performed by LGA
         const stickerSql = `
             SELECT 
                 COUNT(DISTINCT s.id) as total_generated,
-                COUNT(DISTINCT a.id) as active,
                 COUNT(DISTINCT CASE WHEN s.status = 'unused' THEN s.id END) as unused,
                 COUNT(DISTINCT CASE WHEN s.status = 'expired' THEN s.id END) as expired,
                 COUNT(DISTINCT CASE WHEN s.status = 'revoked' THEN s.id END) as revoked
             FROM stickers s
-            LEFT JOIN activations a ON s.id = a.sticker_id
             WHERE s.lga_id = ?
         `;
         const stickerResults = await db.query(stickerSql, [lgaId]);
+
+        // Count activations performed by this LGA (regardless of sticker ownership)
+        const activationCountSql = `
+            SELECT COUNT(*) as active
+            FROM activations
+            WHERE lga_id = ?
+        `;
+        const activationResults = await db.query(activationCountSql, [lgaId]);
+
+        // Merge the results
+        stickerResults[0].active = activationResults[0].active;
 
         // Get personnel stats
         const personnelSql = `
@@ -297,20 +306,33 @@ class LGA {
         const personnelResults = await db.query(personnelSql, [lgaId]);
         const personnel = personnelResults[0];
 
-        // Sticker statistics - Fixed to accurately count stickers
+        // Sticker statistics - Count stickers owned by LGA and activations performed by LGA
         const stickerSql = `
             SELECT 
                 COUNT(DISTINCT s.id) as stickers_generated,
-                COUNT(DISTINCT a.id) as stickers_activated,
                 COUNT(DISTINCT CASE WHEN s.status = 'unused' THEN s.id END) as stickers_unused,
-                COUNT(DISTINCT CASE WHEN s.status = 'expired' THEN s.id END) as stickers_expired,
-                ROUND(COUNT(DISTINCT a.id) * 100.0 / NULLIF(COUNT(DISTINCT s.id), 0), 1) as utilization_rate
+                COUNT(DISTINCT CASE WHEN s.status = 'expired' THEN s.id END) as stickers_expired
             FROM stickers s
-            LEFT JOIN activations a ON s.id = a.sticker_id
             WHERE s.lga_id = ?
         `;
         const stickerResults = await db.query(stickerSql, [lgaId]);
-        const stickers = stickerResults[0];
+
+        // Count activations performed by this LGA (regardless of sticker ownership)
+        const activationCountSql = `
+            SELECT COUNT(*) as stickers_activated
+            FROM activations
+            WHERE lga_id = ?
+        `;
+        const activationCountResults = await db.query(activationCountSql, [lgaId]);
+
+        // Merge results and calculate utilization
+        const stickers = {
+            ...stickerResults[0],
+            stickers_activated: activationCountResults[0].stickers_activated,
+            utilization_rate: stickerResults[0].stickers_generated > 0
+                ? parseFloat((activationCountResults[0].stickers_activated * 100.0 / stickerResults[0].stickers_generated).toFixed(1))
+                : 0
+        };
 
         // Average activations
         const avgActivationsSql = `
