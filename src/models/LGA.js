@@ -124,16 +124,17 @@ class LGA {
         `;
         const revenueResults = await db.query(revenueSql, [lgaId]);
 
-        // Get sticker stats
+        // Get sticker stats - Fixed to count actual activations
         const stickerSql = `
             SELECT 
-                COUNT(*) as total_generated,
-                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
-                SUM(CASE WHEN status = 'unused' THEN 1 ELSE 0 END) as unused,
-                SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) as expired,
-                SUM(CASE WHEN status = 'revoked' THEN 1 ELSE 0 END) as revoked
-            FROM stickers
-            WHERE lga_id = ?
+                COUNT(DISTINCT s.id) as total_generated,
+                COUNT(DISTINCT a.id) as active,
+                COUNT(DISTINCT CASE WHEN s.status = 'unused' THEN s.id END) as unused,
+                COUNT(DISTINCT CASE WHEN s.status = 'expired' THEN s.id END) as expired,
+                COUNT(DISTINCT CASE WHEN s.status = 'revoked' THEN s.id END) as revoked
+            FROM stickers s
+            LEFT JOIN activations a ON s.id = a.sticker_id
+            WHERE s.lga_id = ?
         `;
         const stickerResults = await db.query(stickerSql, [lgaId]);
 

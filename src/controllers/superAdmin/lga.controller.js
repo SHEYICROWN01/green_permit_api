@@ -267,15 +267,15 @@ const getLGAById = asyncHandler(async (req, res) => {
                 ...lga,
                 admin,
                 stats: {
-                    total_revenue: stats.total_revenue || 0,
-                    total_stickers: stats.total_stickers || 0,
-                    active_stickers: stats.active_stickers || 0,
-                    pending_stickers: stats.pending_stickers || 0,
-                    expired_stickers: stats.expired_stickers || 0,
-                    total_personnel: stats.total_personnel || 0,
-                    supervisors: stats.supervisors || 0,
-                    officers: stats.officers || 0,
-                    total_batches: stats.total_batches || 0
+                    total_revenue: stats.revenue?.total || 0,
+                    total_stickers: stats.stickers?.total_generated || 0,
+                    active_stickers: stats.stickers?.active || 0,
+                    pending_stickers: stats.stickers?.unused || 0,
+                    expired_stickers: stats.stickers?.expired || 0,
+                    total_personnel: stats.personnel?.total || 0,
+                    supervisors: stats.personnel?.supervisors || 0,
+                    officers: stats.personnel?.officers || 0,
+                    total_batches: stats.batches?.total || 0
                 },
                 recent_batches: recentBatches,
                 top_supervisors: topSupervisors
