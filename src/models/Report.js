@@ -92,7 +92,7 @@ class Report {
         const sql = `
       SELECT 
         CONCAT('sup_', u.id) as supervisor_id,
-        CONCAT('SUP-', l.code, '-', YEAR(u.created_at), '-', LPAD(u.id, 4, '0')) as supervisor_code,
+        CONCAT('SUP-', COALESCE(l.code, 'LGA'), '-', YEAR(u.created_at), '-', LPAD(u.id, 4, '0')) as supervisor_code,
         u.name,
         u.email,
         u.phone,
@@ -132,7 +132,7 @@ class Report {
       LEFT JOIN users off ON u.id = off.supervisor_id AND off.role = 'officer'
       LEFT JOIN activations a ON (a.officer_id = off.id OR a.activated_by = off.id) AND a.lga_id = u.lga_id
       WHERE ${supervisorWhere}
-      GROUP BY u.id, l.code, u.name, u.email, u.phone, u.is_active, u.created_at
+      GROUP BY u.id, u.name, u.email, u.phone, u.is_active, u.created_at, COALESCE(l.code, 'LGA')
       ORDER BY ${sortField === 'name' ? 'u.name' : sortField} ${order}
     `;
 
