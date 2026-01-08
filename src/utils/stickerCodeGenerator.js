@@ -28,16 +28,21 @@ function generateStickerCode(lgaCode, sequence = 1) {
 
 /**
  * Generate QR code data
- * Returns only the sticker code (not the full URL) for mobile app scanning
- * Officers will use their mobile app to scan and activate stickers
+ * Returns full verification URL for public scanning with regular phone cameras
+ * Format: https://permitmanager.gifamz.com/verify/{STICKER_CODE}
+ * 
+ * Mobile apps should extract just the sticker code from the URL if needed.
+ * Regular phone cameras will open the verification page directly.
  * 
  * @param {string} stickerCode - The unique sticker code
- * @returns {string} QR code data (sticker code only)
+ * @returns {string} QR code data (full verification URL)
  */
 function generateQRCodeData(stickerCode) {
-    // Return only the sticker code for officer mobile app scanning
-    // Mobile app will handle the activation process
-    return stickerCode;
+    // Base URL for permit verification
+    const baseUrl = process.env.VERIFICATION_URL || 'https://permitmanager.gifamz.com';
+
+    // Return full URL so regular phone cameras can scan and open the website
+    return `${baseUrl}/verify/${stickerCode}`;
 }
 
 /**
