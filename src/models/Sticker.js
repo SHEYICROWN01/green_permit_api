@@ -216,9 +216,70 @@ class Sticker {
     }
 
     static async getInventorySummary() {
-        const sql = "SELECT lga_id, COUNT(*) as total_stickers, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as activated, SUM(CASE WHEN status = 'unused' THEN 1 ELSE 0 END) as unused, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active, SUM(price) as total_value FROM stickers GROUP BY lga_id ORDER BY total_stickers DESC";
-        const [rows] = await pool.execute(sql);
-        return rows;
+        // Get overall summary statistics
+        // A sticker is "activated" if status is 'active', 'expired', or 'revoked' (anything but 'unused')
+        const summarySql = `
+            SELECT 
+                COUNT(*) as total_generated,
+                COUNT(CASE WHEN status != 'unused' THEN 1 END) as total_activated,
+                COUNT(CASE WHEN status = 'unused' THEN 1 END) as total_remaining,
+                COUNT(DISTINCT batch_id) as total_batches
+            FROM stickers
+        `;
+
+        const [summaryRows] = await pool.execute(summarySql);
+        const summary = summaryRows[0];
+
+        // Get batch-level statistics
+        const batchesSql = `
+            SELECT 
+                sb.id,
+                sb.batch_code as batch_id,
+                sb.quantity,
+                sb.lga_id,
+                l.name as lga_name,
+                l.state as state_name,
+                l.code as lga_code,
+                COUNT(CASE WHEN s.status != 'unused' THEN 1 END) as used,
+                COUNT(CASE WHEN s.status = 'unused' THEN 1 END) as remaining,
+                sb.status,
+                sb.generated_at,
+                CONCAT(u.first_name, ' ', u.last_name) as generated_by
+            FROM sticker_batches sb
+            LEFT JOIN stickers s ON sb.id = s.batch_id
+            LEFT JOIN lgas l ON sb.lga_id = l.id
+            LEFT JOIN users u ON sb.generated_by = u.id
+            GROUP BY sb.id, sb.batch_code, sb.quantity, sb.lga_id, l.name, l.state, l.code, sb.status, sb.generated_at, u.first_name, u.last_name
+            ORDER BY sb.generated_at DESC
+        `;
+
+        const [batchRows] = await pool.execute(batchesSql);
+
+        // Count active batches (those with remaining stickers)
+        const activeBatches = batchRows.filter(batch => batch.remaining > 0 || batch.status === 'active').length;
+
+        return {
+            summary: {
+                total_generated: parseInt(summary.total_generated) || 0,
+                total_activated: parseInt(summary.total_activated) || 0,
+                total_remaining: parseInt(summary.total_remaining) || 0,
+                total_batches: parseInt(summary.total_batches) || 0,
+                active_batches: activeBatches
+            },
+            batches: batchRows.map(batch => ({
+                id: batch.id,
+                batch_id: batch.batch_id,
+                lga_name: batch.lga_name,
+                lga_code: batch.lga_code,
+                state_name: batch.state_name,
+                quantity: parseInt(batch.quantity),
+                used: parseInt(batch.used) || 0,
+                remaining: parseInt(batch.remaining) || 0,
+                status: batch.status || 'active',
+                generated_at: batch.generated_at,
+                generated_by: batch.generated_by
+            }))
+        };
     }
 }
 module.exports = Sticker;
