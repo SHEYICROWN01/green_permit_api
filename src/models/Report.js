@@ -76,7 +76,9 @@ class Report {
 
         // Build WHERE clause for supervisor filtering
         let supervisorWhere = 'u.lga_id = ? AND u.role = "supervisor"';
-        const params = [lgaId];
+
+        // Initialize params array with date range first (for SELECT clause placeholders)
+        const params = [dateRange.from, dateRange.to, dateRange.from, dateRange.to, lgaId];
 
         if (status && status !== 'all') {
             supervisorWhere += ' AND u.is_active = ?';
@@ -136,9 +138,7 @@ class Report {
       ORDER BY ${sortField === 'name' ? 'u.name' : sortField} ${order}
     `;
 
-        // Add date range parameters for period calculations
-        params.push(dateRange.from, dateRange.to, dateRange.from, dateRange.to);
-
+        // Date range parameters already added to params array above
         const supervisors = await db.query(sql, params);
 
         // Calculate summary statistics
