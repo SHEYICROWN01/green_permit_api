@@ -116,19 +116,21 @@ async function getSuperAdminDashboard(req, res) {
         }))
         : [];
 
-    // Get top officers across ALL LGAs
+    // Get top officers across ALL LGAs with actual activation stats
     const topOfficerRows = await db.query(`
         SELECT 
             u.id as officer_id,
             u.name,
             u.email,
             l.name as lga_name,
-            0 as activations_count,
-            0 as revenue_generated
+            COUNT(DISTINCT a.id) as activations_count,
+            COALESCE(SUM(a.amount_paid), 0) as revenue_generated
         FROM users u
         LEFT JOIN lgas l ON u.lga_id = l.id
+        LEFT JOIN activations a ON (a.officer_id = u.id OR a.activated_by = u.id)
         WHERE u.role = 'officer' AND u.is_active = 1
-        ORDER BY u.created_at DESC
+        GROUP BY u.id, u.name, u.email, l.name
+        ORDER BY revenue_generated DESC, activations_count DESC
         LIMIT 5
     `);
 
@@ -310,18 +312,21 @@ async function getLGAAdminDashboard(req, res) {
         }))
         : [];
 
-    // Get top officers
+    // Get top officers with actual activation stats
     const topOfficerRows = await db.query(`
         SELECT 
             u.id as officer_id,
             u.name,
             u.email,
-            0 as activations_count,
-            0 as revenue_generated
+            COUNT(DISTINCT a.id) as activations_count,
+            COALESCE(SUM(a.amount_paid), 0) as revenue_generated
         FROM users u
+        LEFT JOIN activations a ON (a.officer_id = u.id OR a.activated_by = u.id) AND a.lga_id = ?
         WHERE u.lga_id = ? AND u.role = 'officer' AND u.is_active = 1
+        GROUP BY u.id, u.name, u.email
+        ORDER BY revenue_generated DESC, activations_count DESC
         LIMIT 5
-    `, [lgaId]);
+    `, [lgaId, lgaId]);
 
     // Add rank to top officers
     const topOfficersWithRank = topOfficerRows && topOfficerRows.length > 0

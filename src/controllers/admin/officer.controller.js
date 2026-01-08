@@ -154,25 +154,28 @@ exports.getAllOfficers = asyncHandler(async (req, res) => {
                 COUNT(DISTINCT o.id) as total_officers,
                 SUM(CASE WHEN o.is_active = 1 THEN 1 ELSE 0 END) as active_officers,
                 SUM(CASE WHEN o.is_active = 0 THEN 1 ELSE 0 END) as inactive_officers,
-                0 as total_activations,
-                0 as total_revenue
+                COUNT(DISTINCT a.id) as total_activations,
+                COALESCE(SUM(a.amount_paid), 0) as total_revenue
             FROM users o
+            LEFT JOIN activations a ON (a.officer_id = o.id OR a.activated_by = o.id) AND a.lga_id = ?
             WHERE o.lga_id = ? AND o.role = 'officer'
-        `, [lgaId]);
+        `, [lgaId, lgaId]);
 
         const summary = summaryResult[0];
 
-        // Get top performer (simplified)
+        // Get top performer with actual stats
         const topPerformerResult = await db.query(`
             SELECT 
                 o.officer_code,
                 o.name,
-                0 as activations_count
+                COUNT(DISTINCT a.id) as activations_count
             FROM users o
+            LEFT JOIN activations a ON (a.officer_id = o.id OR a.activated_by = o.id) AND a.lga_id = ?
             WHERE o.role = 'officer' AND o.lga_id = ?
-            ORDER BY o.created_at DESC
+            GROUP BY o.id, o.officer_code, o.name
+            ORDER BY activations_count DESC, o.created_at DESC
             LIMIT 1
-        `, [lgaId]);
+        `, [lgaId, lgaId]);
 
         const topPerformer = topPerformerResult.length > 0 ? topPerformerResult[0] : null;
 
