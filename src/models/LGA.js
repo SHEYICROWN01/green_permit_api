@@ -1,23 +1,4 @@
-# Get token
-TOKEN = $(curl - s - X POST https://gtech.gifamz.com/api/v1/auth/super-admin/login \
-    -H 'Content-Type: application/json' \
-    -d '{"username":"superadmin","password":"Admin@2025"}' | \
-    grep - o '"token":"[^"]*"' | sed 's/"token":"//;s/"$//')
-
-# Test LGA 4(should now show 3 activations)
-curl - s "https://gtech.gifamz.com/api/v1/super-admin/lgas/4" \
--H "Authorization: Bearer $TOKEN" | python3 - m json.tool | grep - A 10 '"stats"'# Get full stats response
-TOKEN = $(curl - s - X POST https://gtech.gifamz.com/api/v1/auth/super-admin/login \
-    -H 'Content-Type: application/json' \
-    -d '{"username":"superadmin","password":"Admin@2025"}' | \
-    grep - o '"token":"[^"]*"' | sed 's/"token":"//;s/"$//')
-
-# Get full response to see what getStats is actually returning
-curl - s "https://gtech.gifamz.com/api/v1/super-admin/lgas/4" \
--H "Authorization: Bearer $TOKEN" | python3 - m json.tool > /tmp/lga4_response.json
-
-# Show the response
-cat / tmp / lga4_response.jsonconst db = require('../config/database');
+const db = require('../config/database');
 
 class LGA {
     /**
