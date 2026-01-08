@@ -234,7 +234,7 @@ class Report {
         const supervisorSql = `
       SELECT 
         CONCAT('sup_', u.id) as supervisor_id,
-        CONCAT('SUP-', l.code, '-', YEAR(u.created_at), '-', LPAD(u.id, 4, '0')) as supervisor_code,
+        CONCAT('SUP-', COALESCE(l.code, 'LGA'), '-', YEAR(u.created_at), '-', LPAD(u.id, 4, '0')) as supervisor_code,
         u.name,
         u.email,
         u.phone,
@@ -253,11 +253,13 @@ class Report {
 
         // Get officers for this supervisor
         let officerWhere = 'u.supervisor_id = ? AND u.role = "officer"';
-        const officerParams = [supervisorId];
 
         if (!includeInactive) {
             officerWhere += ' AND u.is_active = 1';
         }
+
+        // Initialize params array with date range first (for SELECT clause placeholders - 6 dates needed)
+        const officerParams = [dateRange.from, dateRange.to, dateRange.from, dateRange.to, dateRange.from, dateRange.to, supervisorId];
 
         const officersSql = `
       SELECT 
@@ -301,9 +303,7 @@ class Report {
       ORDER BY total_revenue DESC, u.name ASC
     `;
 
-        // Add date range parameters for period calculations (6 parameters needed)
-        officerParams.push(dateRange.from, dateRange.to, dateRange.from, dateRange.to, dateRange.from, dateRange.to);
-
+        // Date range parameters already added to officerParams array above
         const officers = await db.query(officersSql, officerParams);
 
         // Format officers with statistics object
