@@ -10,17 +10,11 @@ const StickerVerificationLog = require('../../models/StickerVerificationLog');
  */
 exports.verifySticker = async (req, res) => {
     try {
-        // Debug logging
-        console.log('Request body:', req.body);
-        console.log('Request headers:', req.headers);
-        console.log('Content-Type:', req.get('Content-Type'));
-
         // Accept both 'code' and 'sticker_code' for backward compatibility
         const { code, sticker_code, gps_location } = req.body;
         const stickerCode = code || sticker_code;
 
         if (!stickerCode) {
-            console.log('No sticker code found. Body keys:', Object.keys(req.body || {}));
             return res.status(400).json({
                 success: false,
                 valid: false,
@@ -30,15 +24,9 @@ exports.verifySticker = async (req, res) => {
                 lga_name: null,
                 state: null,
                 expired: false,
-                code: null,
-                debug: {
-                    bodyReceived: req.body,
-                    bodyKeys: Object.keys(req.body || {})
-                }
+                code: null
             });
-        }
-
-        // Verify the sticker
+        }        // Verify the sticker
         const verification = await Sticker.verify(stickerCode);
 
         // Get device and IP info for logging
