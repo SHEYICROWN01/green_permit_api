@@ -2,6 +2,47 @@ const db = require('../config/database');
 
 class Activation {
     /**
+     * Create a new activation record
+     */
+    static async create(activationData) {
+        const {
+            sticker_id,
+            officer_id,
+            activated_by,
+            supervisor_id,
+            lga_id,
+            expiry_date,
+            amount_paid,
+            customer_name,
+            customer_phone,
+            location
+        } = activationData;
+
+        const sql = `
+            INSERT INTO activations (
+                sticker_id, officer_id, activated_by, supervisor_id, lga_id,
+                activation_date, expiry_date, amount_paid, customer_name,
+                customer_phone, location
+            ) VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)
+        `;
+
+        const [result] = await db.query(sql, [
+            sticker_id,
+            officer_id || null,
+            activated_by,
+            supervisor_id || null,
+            lga_id,
+            expiry_date,
+            amount_paid,
+            customer_name || null,
+            customer_phone || null,
+            location || null
+        ]);
+
+        return result.insertId;
+    }
+
+    /**
      * Get total revenue for a period
      */
     static async getTotalRevenue(startDate = null, endDate = null) {

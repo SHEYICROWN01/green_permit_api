@@ -3,6 +3,7 @@
 const Sticker = require('../../models/Sticker');
 const StickerBatch = require('../../models/StickerBatch');
 const StickerVerificationLog = require('../../models/StickerVerificationLog');
+const Activation = require('../../models/Activation');
 const User = require('../../models/User');
 const ActivityLog = require('../../models/ActivityLog');
 
@@ -70,6 +71,23 @@ exports.activateSticker = async (req, res) => {
         };
 
         const activatedSticker = await Sticker.activate(sticker_code, activationData);
+
+        // Get the sticker price (in kobo)
+        const amount_paid = sticker.price || 0;
+
+        // Create activation record in activations table
+        await Activation.create({
+            sticker_id: sticker.id,
+            officer_id: req.user.role === 'officer' ? req.user.id : null,
+            activated_by: req.user.id,
+            supervisor_id: req.user.role === 'supervisor' ? req.user.id : user?.supervisor_id || null,
+            lga_id: sticker.lga_id,
+            expiry_date: expires_at,
+            amount_paid: amount_paid,
+            customer_name: assigned_to_name,
+            customer_phone: assigned_to_phone,
+            location: verification_location
+        });
 
         // Update batch usage count
         await StickerBatch.incrementUsedCount(sticker.batch_id, 1);
