@@ -116,7 +116,7 @@ exports.getAllOfficers = asyncHandler(async (req, res) => {
             queryParams.push(supId);
         }
 
-        // Get officers (simplified - no activation stats for now since stickers table doesn't have activated_by)
+        // Get officers with activation statistics from activations table
         const sql = `
             SELECT 
                 o.id as officer_id,
@@ -131,11 +131,28 @@ exports.getAllOfficers = asyncHandler(async (req, res) => {
                 s.name as supervisor_name,
                 s.officer_code as supervisor_code,
                 o.created_at,
-                o.last_login_at as last_login
+                o.last_login_at as last_login,
+                COUNT(DISTINCT a.id) as total_activations,
+                COALESCE(SUM(a.amount_paid), 0) as revenue_generated,
+                CASE 
+                    WHEN COUNT(DISTINCT a.id) > 0 
+                    THEN ROUND((COUNT(DISTINCT a.id) * 100.0 / COUNT(DISTINCT a.id)), 0)
+                    ELSE 0 
+                END as success_rate,
+                CASE 
+                    WHEN COUNT(DISTINCT a.id) > 0 AND DATEDIFF(NOW(), MIN(a.created_at)) > 0
+                    THEN ROUND(COUNT(DISTINCT a.id) / DATEDIFF(NOW(), MIN(a.created_at)), 2)
+                    ELSE 0 
+                END as avg_daily_activations,
+                MAX(a.created_at) as last_activation_date
             FROM users o
             LEFT JOIN lgas l ON o.lga_id = l.id
             LEFT JOIN users s ON o.supervisor_id = s.id
+            LEFT JOIN activations a ON (a.officer_id = o.id OR a.activated_by = o.id) AND a.lga_id = o.lga_id
             ${whereClause}
+            GROUP BY o.id, o.officer_code, o.name, o.username, o.phone, o.is_active, 
+                     o.lga_id, l.name, o.supervisor_id, s.name, s.officer_code, 
+                     o.created_at, o.last_login_at
             ${sortClause}
             LIMIT ? OFFSET ?
         `;
