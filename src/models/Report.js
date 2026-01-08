@@ -103,25 +103,43 @@ class Report {
         COUNT(DISTINCT CASE WHEN off.is_active = 1 THEN off.id END) as active_officers,
         COUNT(DISTINCT CASE WHEN off.is_active = 0 THEN off.id END) as inactive_officers,
         
-        -- Lifetime statistics (placeholder - will be populated when activation tracking is implemented)
-        0 as total_activations,
-        0 as total_revenue,
-        0 as avg_activations_per_officer,
-        0 as avg_revenue_per_officer,
-        0 as success_rate,
+        -- Lifetime statistics from activations table
+        COUNT(DISTINCT a.id) as total_activations,
+        COALESCE(SUM(a.amount_paid), 0) as total_revenue,
+        CASE 
+            WHEN COUNT(DISTINCT off.id) > 0 
+            THEN ROUND(COUNT(DISTINCT a.id) / COUNT(DISTINCT off.id), 2)
+            ELSE 0 
+        END as avg_activations_per_officer,
+        CASE 
+            WHEN COUNT(DISTINCT off.id) > 0 
+            THEN ROUND(COALESCE(SUM(a.amount_paid), 0) / COUNT(DISTINCT off.id), 2)
+            ELSE 0 
+        END as avg_revenue_per_officer,
+        CASE 
+            WHEN COUNT(DISTINCT a.id) > 0 
+            THEN ROUND((COUNT(DISTINCT a.id) * 100.0 / COUNT(DISTINCT a.id)), 0)
+            ELSE 0 
+        END as success_rate,
         
-        -- Period statistics (placeholder)
-        0 as period_activations,
-        0 as period_revenue,
+        -- Period statistics
+        COUNT(DISTINCT CASE WHEN a.created_at >= ? AND a.created_at <= ? THEN a.id END) as period_activations,
+        COALESCE(SUM(CASE WHEN a.created_at >= ? AND a.created_at <= ? THEN a.amount_paid ELSE 0 END), 0) as period_revenue,
         
         u.created_at
       FROM users u
       LEFT JOIN lgas l ON u.lga_id = l.id
       LEFT JOIN users off ON u.id = off.supervisor_id AND off.role = 'officer'
+      LEFT JOIN activations a ON (a.officer_id = off.id OR a.activated_by = off.id) AND a.lga_id = u.lga_id
       WHERE ${supervisorWhere}
       GROUP BY u.id, l.code, u.name, u.email, u.phone, u.is_active, u.created_at
       ORDER BY ${sortField === 'name' ? 'u.name' : sortField} ${order}
-    `; const supervisors = await db.query(sql, params);
+    `;
+
+        // Add date range parameters for period calculations
+        params.push(dateRange.from, dateRange.to, dateRange.from, dateRange.to);
+
+        const supervisors = await db.query(sql, params);
 
         // Calculate summary statistics
         const summary = await this.getSupervisorsSummary(lgaId, dateRange);
@@ -147,30 +165,42 @@ class Report {
         COUNT(DISTINCT CASE WHEN sup.is_active = 0 THEN sup.id END) as inactive_supervisors,
         COUNT(DISTINCT off.id) as total_officers,
         
-        -- Placeholder values for activation data
-        0 as total_activations,
-        0 as total_revenue,
-        0 as avg_activations_per_supervisor,
-        0 as avg_revenue_per_supervisor,
-        0 as period_activations,
-        0 as period_revenue
+        -- Activation data from activations table
+        COUNT(DISTINCT a.id) as total_activations,
+        COALESCE(SUM(a.amount_paid), 0) as total_revenue,
+        CASE 
+            WHEN COUNT(DISTINCT sup.id) > 0 
+            THEN ROUND(COUNT(DISTINCT a.id) / COUNT(DISTINCT sup.id), 2)
+            ELSE 0 
+        END as avg_activations_per_supervisor,
+        CASE 
+            WHEN COUNT(DISTINCT sup.id) > 0 
+            THEN ROUND(COALESCE(SUM(a.amount_paid), 0) / COUNT(DISTINCT sup.id), 2)
+            ELSE 0 
+        END as avg_revenue_per_supervisor,
+        COUNT(DISTINCT CASE WHEN a.created_at >= ? AND a.created_at <= ? THEN a.id END) as period_activations,
+        COALESCE(SUM(CASE WHEN a.created_at >= ? AND a.created_at <= ? THEN a.amount_paid ELSE 0 END), 0) as period_revenue
       FROM users sup
       LEFT JOIN users off ON sup.id = off.supervisor_id AND off.role = 'officer'
+      LEFT JOIN activations a ON (a.officer_id = off.id OR a.activated_by = off.id) AND a.lga_id = sup.lga_id
       WHERE sup.lga_id = ? AND sup.role = 'supervisor'
     `;
 
-        const [summary] = await db.query(sql, [lgaId]);
+        const [summary] = await db.query(sql, [dateRange.from, dateRange.to, dateRange.from, dateRange.to, lgaId]);
 
-        // Get top supervisor (placeholder - will use activation data later)
+        // Get top supervisor by total revenue
         const topSupervisorSql = `
       SELECT 
         CONCAT('sup_', u.id) as supervisor_id,
         u.name,
-        0 as total_activations,
-        0 as total_revenue
+        COUNT(DISTINCT a.id) as total_activations,
+        COALESCE(SUM(a.amount_paid), 0) as total_revenue
       FROM users u
+      LEFT JOIN users off ON u.id = off.supervisor_id AND off.role = 'officer'
+      LEFT JOIN activations a ON (a.officer_id = off.id OR a.activated_by = off.id) AND a.lga_id = u.lga_id
       WHERE u.lga_id = ? AND u.role = 'supervisor' AND u.is_active = 1
-      ORDER BY u.name ASC
+      GROUP BY u.id, u.name
+      ORDER BY total_revenue DESC, total_activations DESC
       LIMIT 1
     `;
 
@@ -238,22 +268,41 @@ class Report {
         u.phone,
         CASE WHEN u.is_active = 1 THEN 'active' ELSE 'inactive' END as status,
         
-        -- Placeholder statistics (will be populated with real activation data later)
-        0 as total_activations,
-        0 as total_revenue,
-        0 as success_rate,
-        0 as avg_daily_activations,
-        NULL as last_activation_date,
-        0 as period_activations,
-        0 as period_revenue,
-        0 as period_success_rate,
+        -- Lifetime statistics from activations table
+        COUNT(DISTINCT a.id) as total_activations,
+        COALESCE(SUM(a.amount_paid), 0) as total_revenue,
+        CASE 
+            WHEN COUNT(DISTINCT a.id) > 0 
+            THEN ROUND((COUNT(DISTINCT a.id) * 100.0 / COUNT(DISTINCT a.id)), 0)
+            ELSE 0 
+        END as success_rate,
+        CASE 
+            WHEN COUNT(DISTINCT a.id) > 0 AND DATEDIFF(NOW(), MIN(a.created_at)) > 0
+            THEN ROUND(COUNT(DISTINCT a.id) / DATEDIFF(NOW(), MIN(a.created_at)), 2)
+            ELSE 0 
+        END as avg_daily_activations,
+        MAX(a.created_at) as last_activation_date,
+        
+        -- Period statistics
+        COUNT(DISTINCT CASE WHEN a.created_at >= ? AND a.created_at <= ? THEN a.id END) as period_activations,
+        COALESCE(SUM(CASE WHEN a.created_at >= ? AND a.created_at <= ? THEN a.amount_paid ELSE 0 END), 0) as period_revenue,
+        CASE 
+            WHEN COUNT(DISTINCT CASE WHEN a.created_at >= ? AND a.created_at <= ? THEN a.id END) > 0 
+            THEN 100
+            ELSE 0 
+        END as period_success_rate,
         
         u.created_at,
         u.last_login_at as last_login
       FROM users u
+      LEFT JOIN activations a ON (a.officer_id = u.id OR a.activated_by = u.id)
       WHERE ${officerWhere}
-      ORDER BY u.name ASC
+      GROUP BY u.id, u.officer_code, u.name, u.username, u.phone, u.is_active, u.created_at, u.last_login_at
+      ORDER BY total_revenue DESC, u.name ASC
     `;
+
+        // Add date range parameters for period calculations (6 parameters needed)
+        officerParams.push(dateRange.from, dateRange.to, dateRange.from, dateRange.to, dateRange.from, dateRange.to);
 
         const officers = await db.query(officersSql, officerParams);
 
@@ -279,27 +328,39 @@ class Report {
             last_login: officer.last_login
         }));
 
-        // Calculate summary for this supervisor
+        // Calculate summary for this supervisor from aggregated officer data
+        const totalActivations = officers.reduce((sum, o) => sum + parseInt(o.total_activations || 0), 0);
+        const totalRevenue = officers.reduce((sum, o) => sum + parseFloat(o.total_revenue || 0), 0);
+        const periodActivations = officers.reduce((sum, o) => sum + parseInt(o.period_activations || 0), 0);
+        const periodRevenue = officers.reduce((sum, o) => sum + parseFloat(o.period_revenue || 0), 0);
+
+        // Find best and lowest performers by total revenue
+        const sortedByRevenue = [...officers].sort((a, b) =>
+            parseFloat(b.total_revenue || 0) - parseFloat(a.total_revenue || 0)
+        );
+
         const summary = {
             total_officers: officers.length,
             active_officers: officers.filter(o => o.status === 'active').length,
             inactive_officers: officers.filter(o => o.status === 'inactive').length,
-            total_activations: 0, // Placeholder
-            total_revenue: 0, // Placeholder
-            avg_success_rate: 0, // Placeholder
-            period_activations: 0, // Placeholder
-            period_revenue: 0, // Placeholder
-            best_performer: officers.length > 0 ? {
-                officer_id: officers[0].officer_id,
-                name: officers[0].name,
-                activations: 0,
-                revenue: 0
+            total_activations: totalActivations,
+            total_revenue: totalRevenue,
+            avg_success_rate: officers.length > 0
+                ? Math.round(officers.reduce((sum, o) => sum + parseFloat(o.success_rate || 0), 0) / officers.length)
+                : 0,
+            period_activations: periodActivations,
+            period_revenue: periodRevenue,
+            best_performer: sortedByRevenue.length > 0 && parseFloat(sortedByRevenue[0].total_revenue) > 0 ? {
+                officer_id: sortedByRevenue[0].officer_id,
+                name: sortedByRevenue[0].name,
+                activations: parseInt(sortedByRevenue[0].total_activations),
+                revenue: parseFloat(sortedByRevenue[0].total_revenue)
             } : null,
-            lowest_performer: officers.length > 0 ? {
-                officer_id: officers[officers.length - 1].officer_id,
-                name: officers[officers.length - 1].name,
-                activations: 0,
-                revenue: 0
+            lowest_performer: sortedByRevenue.length > 1 ? {
+                officer_id: sortedByRevenue[sortedByRevenue.length - 1].officer_id,
+                name: sortedByRevenue[sortedByRevenue.length - 1].name,
+                activations: parseInt(sortedByRevenue[sortedByRevenue.length - 1].total_activations),
+                revenue: parseFloat(sortedByRevenue[sortedByRevenue.length - 1].total_revenue)
             } : null
         };
 
@@ -320,19 +381,21 @@ class Report {
     static async getReportSummary(lgaId, period = 'all') {
         const dateRange = this.calculateDateRange(period);
 
-        // Get current period totals
+        // Get current period totals with activation data
         const totalsSql = `
       SELECT 
         COUNT(DISTINCT sup.id) as supervisors,
         COUNT(DISTINCT off.id) as officers,
-        0 as activations,  -- Placeholder
-        0 as revenue       -- Placeholder
+        COUNT(DISTINCT a.id) as activations,
+        COALESCE(SUM(a.amount_paid), 0) as revenue
       FROM users sup
       LEFT JOIN users off ON sup.id = off.supervisor_id AND off.role = 'officer'
+      LEFT JOIN activations a ON (a.officer_id = off.id OR a.activated_by = off.id) 
+        AND a.created_at >= ? AND a.created_at <= ? AND a.lga_id = sup.lga_id
       WHERE sup.lga_id = ? AND sup.role = 'supervisor'
     `;
 
-        const [totals] = await db.query(totalsSql, [lgaId]);
+        const [totals] = await db.query(totalsSql, [dateRange.from, dateRange.to, lgaId]);
 
         // Calculate averages
         const averages = {
