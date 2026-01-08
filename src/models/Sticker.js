@@ -18,12 +18,30 @@ class Sticker {
     }
 
     static async findByCode(stickerCode) {
-        const [rows] = await pool.execute('SELECT * FROM stickers WHERE code = ?', [stickerCode]);
+        const sql = `
+            SELECT 
+                s.*,
+                l.name as lga_name,
+                l.state as state_name
+            FROM stickers s
+            LEFT JOIN lgas l ON s.lga_id = l.id
+            WHERE s.code = ?
+        `;
+        const [rows] = await pool.execute(sql, [stickerCode]);
         return rows.length > 0 ? rows[0] : null;
     }
 
     static async findById(id) {
-        const [rows] = await pool.execute('SELECT * FROM stickers WHERE id = ?', [id]);
+        const sql = `
+            SELECT 
+                s.*,
+                l.name as lga_name,
+                l.state as state_name
+            FROM stickers s
+            LEFT JOIN lgas l ON s.lga_id = l.id
+            WHERE s.id = ?
+        `;
+        const [rows] = await pool.execute(sql, [id]);
         return rows.length > 0 ? rows[0] : null;
     }
 
@@ -113,10 +131,67 @@ class Sticker {
 
     static async verify(stickerCode) {
         const sticker = await this.findByCode(stickerCode);
-        if (!sticker) return { valid: false, message: 'Invalid sticker code', sticker_code: stickerCode };
-        if (sticker.expires_at && new Date(sticker.expires_at) < new Date()) return { valid: false, message: 'Sticker has expired', sticker, expired: true };
-        if (sticker.status === 'revoked') return { valid: false, message: 'Sticker is revoked', sticker, status: sticker.status };
-        return { valid: true, message: 'Valid sticker', sticker, activation_status: sticker.status, lga_name: sticker.lga_name, state: sticker.state_name, assigned_to: sticker.assigned_to_name, activated_at: sticker.activated_at, expires_at: sticker.expires_at };
+
+        // Sticker not found
+        if (!sticker) {
+            return {
+                valid: false,
+                message: 'Invalid sticker code. Sticker not found.',
+                sticker: null,
+                is_activated: 0,
+                lga_name: null,
+                state: null,
+                expired: false,
+                code: stickerCode
+            };
+        }
+
+        // Check if expired
+        const now = new Date();
+        const expired = sticker.expires_at && new Date(sticker.expires_at) < now;
+
+        // Determine activation status
+        const is_activated = sticker.is_activated || (sticker.status === 'active' ? 1 : 0);
+
+        // Build response
+        const response = {
+            valid: true,
+            is_activated,
+            lga_name: sticker.lga_name,
+            state: sticker.state_name,
+            expired,
+            code: sticker.code,
+            sticker: {
+                id: sticker.id,
+                code: sticker.code,
+                lga_name: sticker.lga_name,
+                state_name: sticker.state_name,
+                status: sticker.status,
+                is_activated,
+                activated_at: sticker.activated_at,
+                expires_at: sticker.expires_at,
+                price: sticker.price ? (sticker.price / 100).toFixed(2) : '0.00', // Convert kobo to naira
+                batch_id: sticker.batch_id,
+                lga_id: sticker.lga_id,
+                created_at: sticker.created_at,
+                assigned_to_name: sticker.assigned_to_name || null,
+                assigned_to_phone: sticker.assigned_to_phone || null
+            }
+        };
+
+        // Set appropriate message based on status
+        if (expired) {
+            response.message = 'Sticker has expired';
+        } else if (sticker.status === 'cancelled' || sticker.status === 'revoked') {
+            response.valid = false;
+            response.message = `Sticker has been ${sticker.status}`;
+        } else if (is_activated === 1) {
+            response.message = 'Sticker is valid and active';
+        } else {
+            response.message = 'Sticker is valid but not yet activated';
+        }
+
+        return response;
     }
 
     static async updateStatus(stickerCode, status) {
