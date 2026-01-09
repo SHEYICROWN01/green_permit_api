@@ -306,7 +306,7 @@ class Report {
         // Date range parameters already added to officerParams array above
         const officers = await db.query(officersSql, officerParams);
 
-        // Format officers with statistics object
+        // Format officers with statistics object and convert revenue from kobo to naira
         const formattedOfficers = officers.map(officer => ({
             officer_id: officer.officer_id,
             officer_code: officer.officer_code,
@@ -314,53 +314,54 @@ class Report {
             username: officer.username,
             phone: officer.phone,
             status: officer.status,
-            statistics: {
-                total_activations: officer.total_activations,
-                total_revenue: officer.total_revenue,
-                success_rate: officer.success_rate,
-                avg_daily_activations: officer.avg_daily_activations,
-                last_activation_date: officer.last_activation_date,
-                period_activations: officer.period_activations,
-                period_revenue: officer.period_revenue,
-                period_success_rate: officer.period_success_rate
-            },
+            // Flatten statistics to match frontend expectations
+            total_activations: parseInt(officer.total_activations) || 0,
+            successful_activations: parseInt(officer.total_activations) || 0, // All activations are successful (no failed status in DB)
+            failed_activations: 0, // No failed activations tracked in current schema
+            total_revenue: (parseFloat(officer.total_revenue) || 0) / 100, // Convert kobo to naira
+            success_rate: parseFloat(officer.success_rate) || 0,
+            avg_daily_activations: parseFloat(officer.avg_daily_activations) || 0,
+            last_activation_date: officer.last_activation_date,
+            period_activations: parseInt(officer.period_activations) || 0,
+            period_revenue: (parseFloat(officer.period_revenue) || 0) / 100, // Convert kobo to naira
+            period_success_rate: parseFloat(officer.period_success_rate) || 0,
             created_at: officer.created_at,
             last_login: officer.last_login
         }));
 
-        // Calculate summary for this supervisor from aggregated officer data
-        const totalActivations = officers.reduce((sum, o) => sum + parseInt(o.total_activations || 0), 0);
-        const totalRevenue = officers.reduce((sum, o) => sum + parseFloat(o.total_revenue || 0), 0);
-        const periodActivations = officers.reduce((sum, o) => sum + parseInt(o.period_activations || 0), 0);
-        const periodRevenue = officers.reduce((sum, o) => sum + parseFloat(o.period_revenue || 0), 0);
+        // Calculate summary for this supervisor from formatted officers (already in naira)
+        const totalActivations = formattedOfficers.reduce((sum, o) => sum + (o.total_activations || 0), 0);
+        const totalRevenue = formattedOfficers.reduce((sum, o) => sum + (o.total_revenue || 0), 0);
+        const periodActivations = formattedOfficers.reduce((sum, o) => sum + (o.period_activations || 0), 0);
+        const periodRevenue = formattedOfficers.reduce((sum, o) => sum + (o.period_revenue || 0), 0);
 
         // Find best and lowest performers by total revenue
-        const sortedByRevenue = [...officers].sort((a, b) =>
-            parseFloat(b.total_revenue || 0) - parseFloat(a.total_revenue || 0)
+        const sortedByRevenue = [...formattedOfficers].sort((a, b) =>
+            (b.total_revenue || 0) - (a.total_revenue || 0)
         );
 
         const summary = {
-            total_officers: officers.length,
-            active_officers: officers.filter(o => o.status === 'active').length,
-            inactive_officers: officers.filter(o => o.status === 'inactive').length,
+            total_officers: formattedOfficers.length,
+            active_officers: formattedOfficers.filter(o => o.status === 'active').length,
+            inactive_officers: formattedOfficers.filter(o => o.status === 'inactive').length,
             total_activations: totalActivations,
-            total_revenue: totalRevenue,
-            avg_success_rate: officers.length > 0
-                ? Math.round(officers.reduce((sum, o) => sum + parseFloat(o.success_rate || 0), 0) / officers.length)
+            total_revenue: totalRevenue, // Already in naira
+            avg_success_rate: formattedOfficers.length > 0
+                ? Math.round(formattedOfficers.reduce((sum, o) => sum + (o.success_rate || 0), 0) / formattedOfficers.length)
                 : 0,
             period_activations: periodActivations,
-            period_revenue: periodRevenue,
-            best_performer: sortedByRevenue.length > 0 && parseFloat(sortedByRevenue[0].total_revenue) > 0 ? {
+            period_revenue: periodRevenue, // Already in naira
+            best_performer: sortedByRevenue.length > 0 && sortedByRevenue[0].total_revenue > 0 ? {
                 officer_id: sortedByRevenue[0].officer_id,
                 name: sortedByRevenue[0].name,
-                activations: parseInt(sortedByRevenue[0].total_activations),
-                revenue: parseFloat(sortedByRevenue[0].total_revenue)
+                activations: sortedByRevenue[0].total_activations,
+                revenue: sortedByRevenue[0].total_revenue // Already in naira
             } : null,
             lowest_performer: sortedByRevenue.length > 1 ? {
                 officer_id: sortedByRevenue[sortedByRevenue.length - 1].officer_id,
                 name: sortedByRevenue[sortedByRevenue.length - 1].name,
-                activations: parseInt(sortedByRevenue[sortedByRevenue.length - 1].total_activations),
-                revenue: parseFloat(sortedByRevenue[sortedByRevenue.length - 1].total_revenue)
+                activations: sortedByRevenue[sortedByRevenue.length - 1].total_activations,
+                revenue: sortedByRevenue[sortedByRevenue.length - 1].total_revenue // Already in naira
             } : null
         };
 
