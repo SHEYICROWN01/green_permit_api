@@ -243,9 +243,14 @@ async function getLGAAdminDashboard(req, res) {
         AND YEAR(created_at) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))
     `, [lgaId]);
 
-    // Calculate revenue change percentage
-    const currentRevenue = currentMonthRevenue && currentMonthRevenue[0] ? parseFloat(currentMonthRevenue[0].revenue) || 0 : 0;
-    const previousRevenue = previousMonthRevenue && previousMonthRevenue[0] ? parseFloat(previousMonthRevenue[0].revenue) || 0 : 0;
+    // Calculate revenue change percentage and convert from kobo to naira
+    const currentRevenueKobo = currentMonthRevenue && currentMonthRevenue[0] ? parseFloat(currentMonthRevenue[0].revenue) || 0 : 0;
+    const previousRevenueKobo = previousMonthRevenue && previousMonthRevenue[0] ? parseFloat(previousMonthRevenue[0].revenue) || 0 : 0;
+
+    // Convert to naira (divide by 100)
+    const currentRevenue = currentRevenueKobo / 100;
+    const previousRevenue = previousRevenueKobo / 100;
+
     const revenueChange = previousRevenue > 0
         ? ((currentRevenue - previousRevenue) / previousRevenue * 100).toFixed(1)
         : 0;
@@ -325,14 +330,14 @@ async function getLGAAdminDashboard(req, res) {
         LIMIT 5
     `, [lgaId, lgaId]);
 
-    // Add rank to top officers
+    // Add rank to top officers and convert revenue from kobo to naira
     const topOfficersWithRank = topOfficerRows && topOfficerRows.length > 0
         ? topOfficerRows.map((officer, index) => ({
             officer_id: `off_${officer.officer_id}`,
             name: officer.name,
             email: officer.email,
             activations_count: officer.activations_count,
-            revenue_generated: parseFloat(officer.revenue_generated),
+            revenue_generated: parseFloat(officer.revenue_generated) / 100, // Convert to naira
             rank: index + 1
         }))
         : [];
@@ -361,7 +366,7 @@ async function getLGAAdminDashboard(req, res) {
             officer_id: `off_${row.officer_id}`,
             officer_name: row.officer_name || 'Unknown',
             sticker_id: row.sticker_id,
-            amount: parseInt(row.amount),
+            amount: parseInt(row.amount) / 100, // Convert from kobo to naira
             timestamp: row.timestamp,
             status: row.status
         }))
