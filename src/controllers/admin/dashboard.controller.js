@@ -337,18 +337,19 @@ async function getLGAAdminDashboard(req, res) {
         }))
         : [];
 
-    // Get recent activations with officer details
+    // Get recent activations with officer and sticker details
     const recentActivationRows = await db.query(`
         SELECT 
             a.id as activation_id,
             a.officer_id,
             u.name as officer_name,
-            a.sticker_code as sticker_id,
+            s.code as sticker_id,
             a.amount_paid as amount,
             a.created_at as timestamp,
             'success' as status
         FROM activations a
         LEFT JOIN users u ON a.officer_id = u.id
+        LEFT JOIN stickers s ON a.sticker_id = s.id
         WHERE a.lga_id = ?
         ORDER BY a.created_at DESC
         LIMIT 10
