@@ -223,24 +223,22 @@ async function getLGAAdminDashboard(req, res) {
 
     if (!lga || !lga.id) {
         throw new ApiError(404, 'LGA data could not be retrieved');
-    }    // Get current month revenue
+    }    // Get current month revenue from activations table (amount_paid is in kobo)
     const currentMonthRevenue = await db.query(`
         SELECT 
-            COALESCE(SUM(price / 100), 0) as revenue,
+            COALESCE(SUM(amount_paid), 0) as revenue,
             COUNT(*) as count
-        FROM stickers
+        FROM activations
         WHERE lga_id = ?
-        AND status = 'active'
         AND MONTH(created_at) = MONTH(CURRENT_DATE())
         AND YEAR(created_at) = YEAR(CURRENT_DATE())
     `, [lgaId]);
 
-    // Get previous month revenue
+    // Get previous month revenue from activations table
     const previousMonthRevenue = await db.query(`
-        SELECT COALESCE(SUM(price / 100), 0) as revenue
-        FROM stickers
+        SELECT COALESCE(SUM(amount_paid), 0) as revenue
+        FROM activations
         WHERE lga_id = ?
-        AND status = 'active'
         AND MONTH(created_at) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))
         AND YEAR(created_at) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))
     `, [lgaId]);
@@ -289,16 +287,15 @@ async function getLGAAdminDashboard(req, res) {
         ? ((remainingInventory / totalInventory) * 100).toFixed(0)
         : 0;
 
-    // Get daily activations for last 7 days
+    // Get daily activations for last 7 days from activations table
     const dailyActivationRows = await db.query(`
         SELECT 
             DATE(created_at) as date,
             DAYNAME(created_at) as day,
             COUNT(*) as count
-        FROM stickers
+        FROM activations
         WHERE lga_id = ?
         AND created_at >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 DAY)
-        AND status IN ('active', 'expired')
         GROUP BY DATE(created_at), DAYNAME(created_at)
         ORDER BY DATE(created_at) ASC
     `, [lgaId]);
@@ -340,8 +337,34 @@ async function getLGAAdminDashboard(req, res) {
         }))
         : [];
 
-    // Get recent activations - return empty for now since activated_by column doesn't exist
-    const formattedRecentActivations = [];
+    // Get recent activations with officer details
+    const recentActivationRows = await db.query(`
+        SELECT 
+            a.id as activation_id,
+            a.officer_id,
+            u.name as officer_name,
+            a.sticker_code as sticker_id,
+            a.amount_paid as amount,
+            a.created_at as timestamp,
+            'success' as status
+        FROM activations a
+        LEFT JOIN users u ON a.officer_id = u.id
+        WHERE a.lga_id = ?
+        ORDER BY a.created_at DESC
+        LIMIT 10
+    `, [lgaId]);
+
+    const formattedRecentActivations = recentActivationRows && recentActivationRows.length > 0
+        ? recentActivationRows.map(row => ({
+            activation_id: `act_${row.activation_id}`,
+            officer_id: `off_${row.officer_id}`,
+            officer_name: row.officer_name || 'Unknown',
+            sticker_id: row.sticker_id,
+            amount: parseInt(row.amount),
+            timestamp: row.timestamp,
+            status: row.status
+        }))
+        : [];
 
     // Build response
     const responseData = {
